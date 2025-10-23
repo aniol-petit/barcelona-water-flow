@@ -1,11 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
 import { MeterPopup } from './MeterPopup';
+import barcelonaMap from '@/assets/barcelona-map.jpg';
 
 interface WaterMeter {
   id: string;
-  coordinates: [number, number];
+  coordinates: [number, number]; // Now [x%, y%] for positioning
   status: 'normal' | 'warning' | 'alert';
   lastReading: number;
   predictedFailureRisk: number;
@@ -16,21 +15,19 @@ interface WaterMeterMapProps {
   simulateAlert?: boolean;
 }
 
-// Generate mock water meters across Barcelona
+// Generate mock water meters positioned across the map
 const generateMockMeters = (count: number): WaterMeter[] => {
   const meters: WaterMeter[] = [];
-  // Barcelona bounds: ~41.32-41.47 lat, 2.05-2.23 lng
-  const minLat = 41.32, maxLat = 41.47;
-  const minLng = 2.05, maxLng = 2.23;
   
   for (let i = 0; i < count; i++) {
-    const lat = minLat + Math.random() * (maxLat - minLat);
-    const lng = minLng + Math.random() * (maxLng - minLng);
+    // Position meters across the map area (percentage-based for static image)
+    const x = 10 + Math.random() * 80; // 10-90% from left
+    const y = 10 + Math.random() * 80; // 10-90% from top
     const risk = Math.random() * 100;
     
     meters.push({
       id: `meter-${i}`,
-      coordinates: [lng, lat],
+      coordinates: [x, y], // Now using percentage positions
       status: risk > 80 ? 'alert' : risk > 50 ? 'warning' : 'normal',
       lastReading: Math.floor(1000 + Math.random() * 9000),
       predictedFailureRisk: risk,
@@ -45,149 +42,80 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
   simulateAlert = false 
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
   const [meters] = useState<WaterMeter[]>(generateMockMeters(800));
   const [hoveredMeter, setHoveredMeter] = useState<WaterMeter | null>(null);
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
-  const [mapboxToken, setMapboxToken] = useState<string | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
-
-  useEffect(() => {
-    // Check for stored token on mount
-    const stored = localStorage.getItem('mapbox_token');
-    if (stored) {
-      setMapboxToken(stored);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!mapContainer.current || map.current || !mapboxToken) return;
-
-    // Initialize map centered on Barcelona
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/light-v11',
-      center: [2.1734, 41.3851], // Barcelona center
-      zoom: 12,
-      pitch: 0,
-      accessToken: mapboxToken,
-    });
-
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-
-    // Custom style on load
-    map.current.on('style.load', () => {
-      if (!map.current) return;
-      
-      // Customize map appearance
-      map.current.setPaintProperty('water', 'fill-color', 'hsl(200, 70%, 90%)');
-    });
-
-    // Cleanup
-    return () => {
-      markersRef.current.forEach(marker => marker.remove());
-      map.current?.remove();
-    };
-  }, [mapboxToken]);
-
-  // Add meter markers
-  useEffect(() => {
-    if (!map.current || !mapboxToken) return;
-
-    // Clear existing markers
-    markersRef.current.forEach(marker => marker.remove());
-    markersRef.current = [];
-
-    meters.forEach((meter, index) => {
-      const el = document.createElement('div');
-      el.className = 'water-meter-marker';
-      
-      // Color based on status
-      const color = meter.status === 'alert' 
-        ? 'hsl(0, 75%, 58%)' 
-        : meter.status === 'warning'
-        ? 'hsl(35, 95%, 60%)'
-        : 'hsl(205, 85%, 45%)';
-      
-      el.style.cssText = `
-        width: 12px;
-        height: 12px;
-        background-color: ${color};
-        border-radius: 50%;
-        border: 2px solid white;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        cursor: pointer;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        opacity: 0;
-        animation: dot-appear 0.6s ease-out forwards;
-        animation-delay: ${index * 0.001}s;
-      `;
-
-      // Hover effects
-      el.addEventListener('mouseenter', (e) => {
-        el.style.transform = 'scale(1.5)';
-        el.style.boxShadow = `0 0 20px ${color}, 0 4px 12px rgba(0,0,0,0.2)`;
-        el.style.zIndex = '1000';
-        
-        const rect = el.getBoundingClientRect();
-        setHoverPosition({ x: rect.left + rect.width / 2, y: rect.top });
-        setHoveredMeter(meter);
-      });
-
-      el.addEventListener('mouseleave', () => {
-        el.style.transform = 'scale(1)';
-        el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-        el.style.zIndex = 'auto';
-        
-        setHoveredMeter(null);
-        setHoverPosition(null);
-      });
-
-      el.addEventListener('click', () => {
-        onMeterSelect?.(meter);
-      });
-
-      // Simulate alert animation
-      if (simulateAlert && meter.status === 'alert') {
-        const ripple = document.createElement('div');
-        ripple.style.cssText = `
-          position: absolute;
-          top: -8px;
-          left: -8px;
-          width: 28px;
-          height: 28px;
-          border-radius: 50%;
-          border: 2px solid ${color};
-          animation: ripple 1s ease-out infinite;
-          pointer-events: none;
-        `;
-        el.appendChild(ripple);
-      }
-
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat(meter.coordinates)
-        .addTo(map.current!);
-
-      markersRef.current.push(marker);
-    });
-  }, [meters, onMeterSelect, simulateAlert, mapboxToken]);
 
   return (
     <div className="relative w-full h-full">
-      {!mapboxToken && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/95 backdrop-blur-sm p-8">
-          <div className="max-w-md w-full">
-            <div className="text-center mb-6">
-              <h3 className="text-lg font-semibold text-foreground mb-2">Map Configuration Needed</h3>
-              <p className="text-sm text-muted-foreground">
-                To display the Barcelona water meter map, you'll need a free Mapbox public token.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-      <div ref={mapContainer} className="absolute inset-0 rounded-2xl overflow-hidden" />
+      {/* Static Map Background */}
+      <div className="absolute inset-0 rounded-2xl overflow-hidden bg-gradient-to-br from-ocean-light to-background">
+        <img 
+          src={barcelonaMap} 
+          alt="Barcelona Map" 
+          className="w-full h-full object-cover opacity-90"
+        />
+        {/* Subtle overlay for depth */}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background/10" />
+      </div>
       
+      {/* Interactive Water Meters */}
+      <div className="absolute inset-0">
+        {meters.map((meter, index) => {
+          const color = meter.status === 'alert' 
+            ? 'hsl(0, 75%, 58%)' 
+            : meter.status === 'warning'
+            ? 'hsl(35, 95%, 60%)'
+            : 'hsl(205, 85%, 45%)';
+
+          return (
+            <div
+              key={meter.id}
+              className="absolute cursor-pointer transition-all duration-300 hover:z-50"
+              style={{
+                left: `${meter.coordinates[0]}%`,
+                top: `${meter.coordinates[1]}%`,
+                animationDelay: `${index * 0.001}s`,
+              }}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoverPosition({ 
+                  x: rect.left + rect.width / 2, 
+                  y: rect.top 
+                });
+                setHoveredMeter(meter);
+              }}
+              onMouseLeave={() => {
+                setHoveredMeter(null);
+                setHoverPosition(null);
+              }}
+              onClick={() => onMeterSelect?.(meter)}
+            >
+              <div
+                className="w-3 h-3 rounded-full border-2 border-white shadow-md animate-dot-appear hover:scale-150 transition-transform"
+                style={{ backgroundColor: color }}
+              >
+                {/* Ripple effect for alerts */}
+                {simulateAlert && meter.status === 'alert' && (
+                  <div
+                    className="absolute inset-0 rounded-full border-2 animate-ripple"
+                    style={{ 
+                      borderColor: color,
+                      width: '28px',
+                      height: '28px',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)'
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      
+      {/* Hover Popup */}
       {hoveredMeter && hoverPosition && (
         <MeterPopup 
           meter={hoveredMeter} 
