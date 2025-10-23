@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { WaterMeterMap } from '@/components/WaterMeterMap';
 import { ControlPanel } from '@/components/ControlPanel';
 import { ExplanationSheet } from '@/components/ExplanationSheet';
+import { MapboxTokenInput } from '@/components/MapboxTokenInput';
 import { Droplets } from 'lucide-react';
 
 const Index = () => {
   const [explanationOpen, setExplanationOpen] = useState(false);
   const [explanationType, setExplanationType] = useState<'text' | 'voice'>('text');
   const [simulateAlert, setSimulateAlert] = useState(false);
+  const [hasToken, setHasToken] = useState(false);
 
   const handleTextExplanation = () => {
     setExplanationType('text');
@@ -71,7 +73,12 @@ const Index = () => {
 
       {/* Map */}
       <div className="h-screen w-full p-6 pt-28">
-        <WaterMeterMap 
+        {!hasToken && (
+          <div className="absolute top-32 left-1/2 -translate-x-1/2 z-40 max-w-xl w-full px-6">
+            <MapboxTokenInput onTokenSave={() => setHasToken(true)} />
+          </div>
+        )}
+        <WaterMeterMap
           simulateAlert={simulateAlert}
           onMeterSelect={(meter) => {
             if (meter) {

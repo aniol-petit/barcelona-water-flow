@@ -49,10 +49,19 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
   const [meters] = useState<WaterMeter[]>(generateMockMeters(800));
   const [hoveredMeter, setHoveredMeter] = useState<WaterMeter | null>(null);
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
+  const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
 
   useEffect(() => {
-    if (!mapContainer.current || map.current) return;
+    // Check for stored token on mount
+    const stored = localStorage.getItem('mapbox_token');
+    if (stored) {
+      setMapboxToken(stored);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!mapContainer.current || map.current || !mapboxToken) return;
 
     // Initialize map centered on Barcelona
     map.current = new mapboxgl.Map({
@@ -61,7 +70,7 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
       center: [2.1734, 41.3851], // Barcelona center
       zoom: 12,
       pitch: 0,
-      accessToken: 'pk.eyJ1IjoibG92YWJsZS1kZW1vIiwiYSI6ImNtNWZuZXRsZzA4ZmIya3M4anYxbTdpOGgifQ.JVBdYIu3LKepe_vBdLsb3g',
+      accessToken: mapboxToken,
     });
 
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
@@ -79,11 +88,11 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
       markersRef.current.forEach(marker => marker.remove());
       map.current?.remove();
     };
-  }, []);
+  }, [mapboxToken]);
 
   // Add meter markers
   useEffect(() => {
-    if (!map.current) return;
+    if (!map.current || !mapboxToken) return;
 
     // Clear existing markers
     markersRef.current.forEach(marker => marker.remove());
@@ -161,10 +170,22 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
 
       markersRef.current.push(marker);
     });
-  }, [meters, onMeterSelect, simulateAlert]);
+  }, [meters, onMeterSelect, simulateAlert, mapboxToken]);
 
   return (
     <div className="relative w-full h-full">
+      {!mapboxToken && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/95 backdrop-blur-sm p-8">
+          <div className="max-w-md w-full">
+            <div className="text-center mb-6">
+              <h3 className="text-lg font-semibold text-foreground mb-2">Map Configuration Needed</h3>
+              <p className="text-sm text-muted-foreground">
+                To display the Barcelona water meter map, you'll need a free Mapbox public token.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       <div ref={mapContainer} className="absolute inset-0 rounded-2xl overflow-hidden" />
       
       {hoveredMeter && hoverPosition && (
