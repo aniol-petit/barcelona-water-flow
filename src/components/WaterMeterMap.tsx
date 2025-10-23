@@ -14,24 +14,53 @@ interface WaterMeter {
 interface WaterMeterMapProps {
   onMeterSelect?: (meter: WaterMeter | null) => void;
   simulateAlert?: boolean;
+  onMetersChange?: (meters: WaterMeter[]) => void;
 }
 
-// Barcelona bounds for meter generation
-const BARCELONA_BOUNDS = {
-  minLng: 2.05,
-  maxLng: 2.25,
-  minLat: 41.32,
-  maxLat: 41.47,
-};
+// Barcelona land zones - approximating the city's actual shape, excluding water
+const BARCELONA_LAND_ZONES = [
+  // Central Barcelona (Eixample, Ciutat Vella)
+  { minLng: 2.150, maxLng: 2.190, minLat: 41.375, maxLat: 41.405 },
+  // Upper Barcelona (Gràcia, Sant Gervasi)
+  { minLng: 2.135, maxLng: 2.175, minLat: 41.395, maxLat: 41.420 },
+  // Eastern Barcelona (Sant Martí)
+  { minLng: 2.180, maxLng: 2.220, minLat: 41.390, maxLat: 41.420 },
+  // Western Barcelona (Les Corts, Sants)
+  { minLng: 2.110, maxLng: 2.155, minLat: 41.370, maxLat: 41.395 },
+  // Southern Barcelona (Sants-Montjuïc)
+  { minLng: 2.140, maxLng: 2.180, minLat: 41.355, maxLat: 41.380 },
+  // Northern Barcelona (Horta-Guinardó)
+  { minLng: 2.150, maxLng: 2.190, minLat: 41.410, maxLat: 41.440 },
+  // North-West (Sarrià-Sant Gervasi)
+  { minLng: 2.105, maxLng: 2.145, minLat: 41.390, maxLat: 41.425 },
+  // Far East (Sant Andreu, Nou Barris)
+  { minLng: 2.165, maxLng: 2.200, minLat: 41.420, maxLat: 41.455 },
+];
 
-// Generate mock water meters positioned across Barcelona
+// Generate mock water meters positioned realistically across Barcelona's land areas
 const generateMockMeters = (count: number): WaterMeter[] => {
   const meters: WaterMeter[] = [];
   
   for (let i = 0; i < count; i++) {
-    // Position meters within Barcelona's geographical bounds
-    const lng = BARCELONA_BOUNDS.minLng + Math.random() * (BARCELONA_BOUNDS.maxLng - BARCELONA_BOUNDS.minLng);
-    const lat = BARCELONA_BOUNDS.minLat + Math.random() * (BARCELONA_BOUNDS.maxLat - BARCELONA_BOUNDS.minLat);
+    // Randomly select a zone with weighted probability (central zones get more meters)
+    const zoneWeights = [3, 2, 2, 2, 2, 1.5, 1.5, 1]; // Higher weight for central areas
+    const totalWeight = zoneWeights.reduce((a, b) => a + b, 0);
+    let random = Math.random() * totalWeight;
+    let selectedZoneIndex = 0;
+    
+    for (let j = 0; j < zoneWeights.length; j++) {
+      random -= zoneWeights[j];
+      if (random <= 0) {
+        selectedZoneIndex = j;
+        break;
+      }
+    }
+    
+    const zone = BARCELONA_LAND_ZONES[selectedZoneIndex];
+    
+    // Position meters within the selected zone
+    const lng = zone.minLng + Math.random() * (zone.maxLng - zone.minLng);
+    const lat = zone.minLat + Math.random() * (zone.maxLat - zone.minLat);
     const risk = Math.random() * 100;
     
     meters.push({
@@ -48,14 +77,20 @@ const generateMockMeters = (count: number): WaterMeter[] => {
 
 export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({ 
   onMeterSelect,
-  simulateAlert = false 
+  simulateAlert = false,
+  onMetersChange
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
-  const [meters] = useState<WaterMeter[]>(generateMockMeters(800));
+  const [meters] = useState<WaterMeter[]>(generateMockMeters(1800));
   const [hoveredMeter, setHoveredMeter] = useState<WaterMeter | null>(null);
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
+
+  // Notify parent component when meters change
+  useEffect(() => {
+    onMetersChange?.(meters);
+  }, [meters, onMetersChange]);
 
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -91,21 +126,21 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
         // Create custom marker element
         const el = document.createElement('div');
         el.className = 'cursor-pointer transition-all duration-300 hover:z-50';
-        el.style.width = '12px';
-        el.style.height = '12px';
+        el.style.width = '6px';
+        el.style.height = '6px';
         el.style.animationDelay = `${index * 0.001}s`;
         
         const dot = document.createElement('div');
-        dot.className = 'w-3 h-3 rounded-full border-2 border-white shadow-md animate-dot-appear hover:scale-150 transition-transform';
+        dot.className = 'w-1.5 h-1.5 rounded-full border border-white shadow-sm animate-dot-appear hover:scale-[2.5] transition-transform';
         dot.style.backgroundColor = color;
 
         // Add ripple effect for alerts
         if (simulateAlert && meter.status === 'alert') {
           const ripple = document.createElement('div');
-          ripple.className = 'absolute inset-0 rounded-full border-2 animate-ripple';
+          ripple.className = 'absolute inset-0 rounded-full border animate-ripple';
           ripple.style.borderColor = color;
-          ripple.style.width = '28px';
-          ripple.style.height = '28px';
+          ripple.style.width = '18px';
+          ripple.style.height = '18px';
           ripple.style.top = '50%';
           ripple.style.left = '50%';
           ripple.style.transform = 'translate(-50%, -50%)';

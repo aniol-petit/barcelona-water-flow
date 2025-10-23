@@ -1,17 +1,19 @@
 import React from 'react';
-import { MessageSquare, Volume2, Info } from 'lucide-react';
+import { MessageSquare, Volume2, Info, BarChart3 } from 'lucide-react';
 import { Button } from './ui/button';
 
 interface ControlPanelProps {
   onTextExplanation: () => void;
   onVoiceExplanation: () => void;
   onInfo: () => void;
+  onDashboard: () => void;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
   onTextExplanation,
   onVoiceExplanation,
-  onInfo
+  onInfo,
+  onDashboard
 }) => {
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
@@ -45,6 +47,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           >
             <Volume2 className="w-4 h-4 mr-2" />
             Voice Explanation
+          </Button>
+          
+          <div className="h-6 w-px bg-border" />
+          
+          <Button
+            onClick={onDashboard}
+            variant="outline"
+            className="border-primary/20 hover:bg-primary/5 text-primary animate-gentle-pulse"
+            style={{ animationDelay: '1s' }}
+          >
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Dashboard
           </Button>
         </div>
       </div>

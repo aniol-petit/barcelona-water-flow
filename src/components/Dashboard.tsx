@@ -1,0 +1,231 @@
+import React, { useState } from 'react';
+import { X, MapPin, Droplets, AlertTriangle, CheckCircle2, Clock, Gauge } from 'lucide-react';
+import { Button } from './ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Badge } from './ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+
+interface WaterMeter {
+  id: string;
+  coordinates: [number, number];
+  status: 'normal' | 'warning' | 'alert';
+  lastReading: number;
+  predictedFailureRisk: number;
+  name?: string;
+  location?: string;
+  lastMaintenance?: string;
+  installationDate?: string;
+}
+
+interface DashboardProps {
+  isOpen: boolean;
+  onClose: () => void;
+  meters: WaterMeter[];
+}
+
+// Mock data for demonstration
+const generateMockMeterData = (meter: WaterMeter): WaterMeter => {
+  const locations = [
+    'Carrer de la Pau, 12',
+    'Plaça de Catalunya, 8',
+    'Avinguda Diagonal, 245',
+    'Carrer de Balmes, 156',
+    'Passeig de Gràcia, 78',
+    'Carrer de Mallorca, 234',
+    'Avinguda de Sarrià, 45',
+    'Carrer de València, 189',
+    'Plaça de Sant Jaume, 3',
+    'Carrer de la Rambla, 67'
+  ];
+
+  const names = [
+    'Meter Alpha-001',
+    'Meter Beta-002', 
+    'Meter Gamma-003',
+    'Meter Delta-004',
+    'Meter Epsilon-005',
+    'Meter Zeta-006',
+    'Meter Eta-007',
+    'Meter Theta-008',
+    'Meter Iota-009',
+    'Meter Kappa-010'
+  ];
+
+  return {
+    ...meter,
+    name: names[Math.floor(Math.random() * names.length)],
+    location: locations[Math.floor(Math.random() * locations.length)],
+    lastMaintenance: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+    installationDate: new Date(Date.now() - Math.random() * 5 * 365 * 24 * 60 * 60 * 1000).toLocaleDateString()
+  };
+};
+
+export const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, meters }) => {
+  const [selectedTab, setSelectedTab] = useState('normal');
+
+  if (!isOpen) return null;
+
+  // Generate mock data for all meters
+  const metersWithData = meters.map(generateMockMeterData);
+
+  // Filter meters by status
+  const normalMeters = metersWithData.filter(m => m.status === 'normal');
+  const warningMeters = metersWithData.filter(m => m.status === 'warning');
+  const alertMeters = metersWithData.filter(m => m.status === 'alert');
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'alert':
+        return <AlertTriangle className="w-4 h-4 text-destructive" />;
+      case 'warning':
+        return <AlertTriangle className="w-4 h-4 text-accent" />;
+      default:
+        return <CheckCircle2 className="w-4 h-4 text-primary" />;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'alert':
+        return <Badge variant="destructive">Alert</Badge>;
+      case 'warning':
+        return <Badge variant="secondary" className="bg-accent text-accent-foreground">Warning</Badge>;
+      default:
+        return <Badge variant="default">Normal</Badge>;
+    }
+  };
+
+  const MeterCard = ({ meter }: { meter: WaterMeter }) => (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {getStatusIcon(meter.status)}
+            <CardTitle className="text-sm font-medium">{meter.name}</CardTitle>
+          </div>
+          {getStatusBadge(meter.status)}
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <MapPin className="w-3 h-3" />
+          <span className="truncate">{meter.location}</span>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="flex items-center gap-1">
+            <Droplets className="w-3 h-3 text-primary" />
+            <span className="text-muted-foreground">Reading:</span>
+            <span className="font-medium">{meter.lastReading.toLocaleString()} L</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Gauge className="w-3 h-3 text-accent" />
+            <span className="text-muted-foreground">Risk:</span>
+            <span className="font-medium">{Math.round(meter.predictedFailureRisk)}%</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Clock className="w-3 h-3 text-muted-foreground" />
+            <span className="text-muted-foreground">Last Maint:</span>
+            <span className="font-medium">{meter.lastMaintenance}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Clock className="w-3 h-3 text-muted-foreground" />
+            <span className="text-muted-foreground">Installed:</span>
+            <span className="font-medium">{meter.installationDate}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div 
+        className="fixed inset-0 bg-background/60 backdrop-blur-sm z-50 animate-fade-in"
+        onClick={onClose}
+      />
+      
+      {/* Dashboard */}
+      <div className="fixed inset-4 z-50 bg-card border border-border rounded-2xl shadow-2xl animate-slide-up overflow-hidden">
+        <div className="sticky top-0 bg-card/95 backdrop-blur-md border-b border-border px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Water Meter Dashboard</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Monitor all water meters across Barcelona
+            </p>
+          </div>
+          <Button
+            onClick={onClose}
+            variant="ghost"
+            size="icon"
+            className="hover:bg-muted/50"
+          >
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
+        
+        <div className="p-6 h-[calc(100vh-8rem)] overflow-y-auto">
+          <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-3 mb-6">
+              <TabsTrigger value="normal" className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                Normal ({normalMeters.length})
+              </TabsTrigger>
+              <TabsTrigger value="warning" className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Warning ({warningMeters.length})
+              </TabsTrigger>
+              <TabsTrigger value="alert" className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Alert ({alertMeters.length})
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="normal" className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {normalMeters.map((meter) => (
+                  <MeterCard key={meter.id} meter={meter} />
+                ))}
+              </div>
+              {normalMeters.length === 0 && (
+                <div className="text-center py-12 text-muted-foreground">
+                  <CheckCircle2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No normal meters to display</p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="warning" className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {warningMeters.map((meter) => (
+                  <MeterCard key={meter.id} meter={meter} />
+                ))}
+              </div>
+              {warningMeters.length === 0 && (
+                <div className="text-center py-12 text-muted-foreground">
+                  <AlertTriangle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No warning meters to display</p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="alert" className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {alertMeters.map((meter) => (
+                  <MeterCard key={meter.id} meter={meter} />
+                ))}
+              </div>
+              {alertMeters.length === 0 && (
+                <div className="text-center py-12 text-muted-foreground">
+                  <AlertTriangle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No alert meters to display</p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+    </>
+  );
+};

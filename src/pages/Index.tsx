@@ -2,12 +2,24 @@ import React, { useState } from 'react';
 import { WaterMeterMap } from '@/components/WaterMeterMap';
 import { ControlPanel } from '@/components/ControlPanel';
 import { ExplanationSheet } from '@/components/ExplanationSheet';
+import { Dashboard } from '@/components/Dashboard';
 import { Droplets } from 'lucide-react';
+
+interface WaterMeter {
+  id: string;
+  coordinates: [number, number];
+  status: 'normal' | 'warning' | 'alert';
+  lastReading: number;
+  predictedFailureRisk: number;
+}
 
 const Index = () => {
   const [explanationOpen, setExplanationOpen] = useState(false);
   const [explanationType, setExplanationType] = useState<'text' | 'voice'>('text');
   const [simulateAlert, setSimulateAlert] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [selectedMeter, setSelectedMeter] = useState<WaterMeter | null>(null);
+  const [allMeters, setAllMeters] = useState<WaterMeter[]>([]);
 
   const handleTextExplanation = () => {
     setExplanationType('text');
@@ -25,6 +37,21 @@ const Index = () => {
 
   const handleInfo = () => {
     setSimulateAlert(!simulateAlert);
+  };
+
+  const handleDashboard = () => {
+    setDashboardOpen(true);
+  };
+
+  const handleMeterSelect = (meter: WaterMeter | null) => {
+    setSelectedMeter(meter);
+    if (meter) {
+      console.log('Selected meter:', meter);
+    }
+  };
+
+  const handleMetersChange = (meters: WaterMeter[]) => {
+    setAllMeters(meters);
   };
 
   return (
@@ -73,11 +100,8 @@ const Index = () => {
       <div className="h-screen w-full p-6 pt-28">
         <WaterMeterMap
           simulateAlert={simulateAlert}
-          onMeterSelect={(meter) => {
-            if (meter) {
-              console.log('Selected meter:', meter);
-            }
-          }}
+          onMeterSelect={handleMeterSelect}
+          onMetersChange={handleMetersChange}
         />
       </div>
 
@@ -86,6 +110,7 @@ const Index = () => {
         onTextExplanation={handleTextExplanation}
         onVoiceExplanation={handleVoiceExplanation}
         onInfo={handleInfo}
+        onDashboard={handleDashboard}
       />
 
       {/* Explanation Sheet */}
@@ -93,6 +118,14 @@ const Index = () => {
         isOpen={explanationOpen}
         onClose={() => setExplanationOpen(false)}
         type={explanationType}
+        selectedMeter={selectedMeter}
+      />
+
+      {/* Dashboard */}
+      <Dashboard
+        isOpen={dashboardOpen}
+        onClose={() => setDashboardOpen(false)}
+        meters={allMeters}
       />
     </div>
   );
