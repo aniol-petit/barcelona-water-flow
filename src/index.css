@@ -8,81 +8,109 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Barcelona Water Theme - Ocean Blues & Warm Accents */
+    --background: 210 25% 98%;
+    --foreground: 215 20% 20%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 215 20% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 215 20% 20%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Ocean Blue Primary */
+    --primary: 205 85% 45%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 205 85% 65%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Soft Teal Secondary */
+    --secondary: 180 40% 92%;
+    --secondary-foreground: 205 85% 35%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Calm Neutral Muted */
+    --muted: 210 20% 94%;
+    --muted-foreground: 215 15% 50%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Warm Amber Accent */
+    --accent: 35 95% 60%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Alert Red (for risk) */
+    --destructive: 0 75% 58%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 210 20% 88%;
+    --input: 210 20% 92%;
+    --ring: 205 85% 45%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+
+    /* Custom Design Tokens */
+    --ocean-light: 200 70% 90%;
+    --ocean-medium: 205 75% 55%;
+    --ocean-deep: 210 80% 35%;
+    --water-glow: 195 100% 85%;
+    --risk-glow: 0 90% 70%;
+    
+    /* Shadows */
+    --shadow-soft: 0 2px 12px -2px hsl(210 20% 20% / 0.08);
+    --shadow-medium: 0 8px 24px -4px hsl(210 20% 20% / 0.12);
+    --shadow-glow: 0 0 24px hsl(var(--primary-glow) / 0.3);
+    
+    /* Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-spring: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 215 25% 12%;
+    --foreground: 210 25% 95%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 215 20% 15%;
+    --card-foreground: 210 25% 95%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 215 20% 15%;
+    --popover-foreground: 210 25% 95%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 205 80% 55%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 205 90% 70%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 210 20% 20%;
+    --secondary-foreground: 205 80% 65%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 210 20% 18%;
+    --muted-foreground: 215 15% 60%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 35 95% 65%;
+    --accent-foreground: 0 0% 10%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 210 20% 22%;
+    --input: 210 20% 20%;
+    --ring: 205 80% 55%;
+    
+    --ocean-light: 200 50% 25%;
+    --ocean-medium: 205 60% 45%;
+    --ocean-deep: 210 70% 30%;
+    --water-glow: 195 80% 60%;
+    --risk-glow: 0 85% 65%;
+    
+    --shadow-soft: 0 2px 12px -2px hsl(0 0% 0% / 0.3);
+    --shadow-medium: 0 8px 24px -4px hsl(0 0% 0% / 0.4);
+    --shadow-glow: 0 0 24px hsl(var(--primary-glow) / 0.4);
+    
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
