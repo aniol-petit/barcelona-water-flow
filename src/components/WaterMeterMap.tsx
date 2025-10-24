@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { MeterPopup } from './MeterPopup';
 
 interface WaterMeter {
   id: string;
@@ -82,10 +81,7 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
-  const [meters] = useState<WaterMeter[]>(generateMockMeters(1800));
-  const [hoveredMeter, setHoveredMeter] = useState<WaterMeter | null>(null);
-  const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
+  const [meters] = useState<WaterMeter[]>(generateMockMeters(5000));
 
   // Notify parent component when meters change
   useEffect(() => {
@@ -114,74 +110,129 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
       'top-right'
     );
 
-    // Add water meter markers once map is loaded
+    // Add water meter data as a GeoJSON source
     map.current.on('load', () => {
-      meters.forEach((meter, index) => {
-        const color = meter.status === 'alert' 
-          ? 'hsl(0, 75%, 58%)' 
-          : meter.status === 'warning'
-          ? 'hsl(35, 95%, 60%)'
-          : 'hsl(205, 85%, 45%)';
+      const geojsonData = {
+        type: 'FeatureCollection',
+        features: meters.map(meter => ({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: meter.coordinates
+          },
+          properties: {
+            id: meter.id,
+            status: meter.status,
+            lastReading: meter.lastReading,
+            predictedFailureRisk: meter.predictedFailureRisk
+          }
+        }))
+      };
 
-        // Create custom marker element
-        const el = document.createElement('div');
-        el.className = 'cursor-pointer transition-all duration-300 hover:z-50';
-        el.style.width = '6px';
-        el.style.height = '6px';
-        el.style.animationDelay = `${index * 0.001}s`;
-        
-        const dot = document.createElement('div');
-        dot.className = 'w-1.5 h-1.5 rounded-full border border-white shadow-sm animate-dot-appear hover:scale-[2.5] transition-transform';
-        dot.style.backgroundColor = color;
+      // Add the source
+      map.current!.addSource('water-meters', {
+        type: 'geojson',
+        data: geojsonData
+      });
 
-        // Add ripple effect for alerts
-        if (simulateAlert && meter.status === 'alert') {
-          const ripple = document.createElement('div');
-          ripple.className = 'absolute inset-0 rounded-full border animate-ripple';
-          ripple.style.borderColor = color;
-          ripple.style.width = '18px';
-          ripple.style.height = '18px';
-          ripple.style.top = '50%';
-          ripple.style.left = '50%';
-          ripple.style.transform = 'translate(-50%, -50%)';
-          dot.appendChild(ripple);
+      // Add normal meters layer
+      map.current!.addLayer({
+        id: 'normal-meters',
+        type: 'circle',
+        source: 'water-meters',
+        filter: ['==', ['get', 'status'], 'normal'],
+        paint: {
+          'circle-radius': 2,
+          'circle-color': 'hsl(205, 85%, 45%)',
+          'circle-stroke-width': 1,
+          'circle-stroke-color': '#ffffff'
         }
+      });
 
-        el.appendChild(dot);
+      // Add warning meters layer
+      map.current!.addLayer({
+        id: 'warning-meters',
+        type: 'circle',
+        source: 'water-meters',
+        filter: ['==', ['get', 'status'], 'warning'],
+        paint: {
+          'circle-radius': 2,
+          'circle-color': 'hsl(35, 95%, 60%)',
+          'circle-stroke-width': 1,
+          'circle-stroke-color': '#ffffff'
+        }
+      });
 
-        // Add hover events
-        el.addEventListener('mouseenter', (e) => {
-          const rect = el.getBoundingClientRect();
-          setHoverPosition({ 
-            x: rect.left + rect.width / 2, 
-            y: rect.top 
-          });
-          setHoveredMeter(meter);
+      // Add alert meters layer
+      map.current!.addLayer({
+        id: 'alert-meters',
+        type: 'circle',
+        source: 'water-meters',
+        filter: ['==', ['get', 'status'], 'alert'],
+        paint: {
+          'circle-radius': 2,
+          'circle-color': 'hsl(0, 75%, 58%)',
+          'circle-stroke-width': 1,
+          'circle-stroke-color': '#ffffff'
+        }
+      });
+
+      // Add hover popup
+      const popup = new mapboxgl.Popup({
+        closeButton: false,
+        closeOnClick: false
+      });
+
+      // Add hover effect and popup
+      ['normal-meters', 'warning-meters', 'alert-meters'].forEach(layerId => {
+        map.current!.on('mouseenter', layerId, (e) => {
+          map.current!.getCanvas().style.cursor = 'pointer';
+          
+          const feature = e.features?.[0];
+          if (feature) {
+            const meter = meters.find(m => m.id === feature.properties.id);
+            if (meter) {
+              popup.setLngLat(e.lngLat)
+                .setHTML(`
+                  <div class="p-2">
+                    <div class="font-semibold text-sm">${meter.name || `Meter ${meter.id}`}</div>
+                    <div class="text-xs text-gray-600">Risk: ${Math.round(meter.predictedFailureRisk)}%</div>
+                    <div class="text-xs text-gray-600">Reading: ${meter.lastReading.toLocaleString()} L</div>
+                  </div>
+                `)
+                .addTo(map.current!);
+            }
+          }
         });
 
-        el.addEventListener('mouseleave', () => {
-          setHoveredMeter(null);
-          setHoverPosition(null);
+        map.current!.on('mouseleave', layerId, () => {
+          map.current!.getCanvas().style.cursor = '';
+          popup.remove();
         });
+      });
 
-        el.addEventListener('click', () => {
-          onMeterSelect?.(meter);
-        });
-
-        // Create and add marker
-        const marker = new mapboxgl.Marker({ element: el })
-          .setLngLat(meter.coordinates)
-          .addTo(map.current!);
-
-        markersRef.current.push(marker);
+      // Add click handler
+      map.current!.on('click', ['normal-meters', 'warning-meters', 'alert-meters'], (e) => {
+        const feature = e.features?.[0];
+        if (feature) {
+          const meter = meters.find(m => m.id === feature.properties.id);
+          if (meter) {
+            onMeterSelect?.(meter);
+          }
+        }
       });
     });
 
     // Cleanup
     return () => {
-      markersRef.current.forEach(marker => marker.remove());
-      markersRef.current = [];
-      map.current?.remove();
+      if (map.current) {
+        // Remove layers and sources
+        if (map.current.getLayer('normal-meters')) map.current.removeLayer('normal-meters');
+        if (map.current.getLayer('warning-meters')) map.current.removeLayer('warning-meters');
+        if (map.current.getLayer('alert-meters')) map.current.removeLayer('alert-meters');
+        if (map.current.getSource('water-meters')) map.current.removeSource('water-meters');
+        map.current.remove();
+      }
     };
   }, [meters, onMeterSelect, simulateAlert]);
 
@@ -191,14 +242,6 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
         ref={mapContainer} 
         className="absolute inset-0 rounded-2xl overflow-hidden"
       />
-      
-      {/* Hover Popup */}
-      {hoveredMeter && hoverPosition && (
-        <MeterPopup 
-          meter={hoveredMeter} 
-          position={hoverPosition}
-        />
-      )}
     </div>
   );
 };
