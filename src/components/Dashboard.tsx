@@ -8,11 +8,11 @@ import { Input } from './ui/input';
 
 interface WaterMeter {
   id: string;
+  name: string;
   coordinates: [number, number];
   status: 'normal' | 'warning' | 'alert';
   lastReading: number;
   predictedFailureRisk: number;
-  name?: string;
   location?: string;
   lastMaintenance?: string;
   installationDate?: string;
@@ -39,26 +39,11 @@ const generateMockMeterData = (meter: WaterMeter): WaterMeter => {
     'Carrer de la Rambla, 67'
   ];
 
-  const names = [
-    'Meter Alpha-001',
-    'Meter Beta-002', 
-    'Meter Gamma-003',
-    'Meter Delta-004',
-    'Meter Epsilon-005',
-    'Meter Zeta-006',
-    'Meter Eta-007',
-    'Meter Theta-008',
-    'Meter Iota-009',
-    'Meter Kappa-010'
-  ];
-
   // Use meter ID to ensure consistent data for the same meter
-  const nameIndex = parseInt(meter.id.split('-')[1]) % names.length;
   const locationIndex = parseInt(meter.id.split('-')[1]) % locations.length;
 
   return {
     ...meter,
-    name: names[nameIndex],
     location: locations[locationIndex],
     lastMaintenance: '12/15/2024',
     installationDate: '06/20/2022'
@@ -114,7 +99,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, meters })
   };
 
   const MeterCard = ({ meter }: { meter: WaterMeter }) => (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="hover:shadow-lg hover:border-primary/20 transition-all duration-300 bg-card/50 backdrop-blur-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -165,12 +150,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, meters })
       />
       
       {/* Dashboard */}
-      <div className="fixed inset-4 z-50 bg-card border border-border rounded-2xl shadow-2xl animate-slide-up overflow-hidden">
-        <div className="sticky top-0 bg-card/95 backdrop-blur-md border-b border-border px-6 py-4">
+      <div className="fixed inset-4 z-50 glass-effect rounded-3xl shadow-2xl animate-slide-up overflow-hidden">
+        <div className="sticky top-0 glass-effect border-b border-border/50 px-6 py-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-2xl font-bold text-foreground">Water Meter Dashboard</h2>
-              <p className="text-sm text-muted-foreground mt-1">
+              <h2 className="text-3xl font-bold tracking-tight">
+                <span className="text-gradient-primary">Water Meter</span> Dashboard
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1.5 font-medium">
                 Monitor all water meters across Barcelona
               </p>
             </div>

@@ -4,6 +4,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 
 interface WaterMeter {
   id: string;
+  name: string;
   coordinates: [number, number]; // [lng, lat] for Mapbox
   status: 'normal' | 'warning' | 'alert';
   lastReading: number;
@@ -14,6 +15,7 @@ interface WaterMeterMapProps {
   onMeterSelect?: (meter: WaterMeter | null) => void;
   simulateAlert?: boolean;
   onMetersChange?: (meters: WaterMeter[]) => void;
+  filterStatus?: {normal: boolean, warning: boolean, alert: boolean};
 }
 
 // Barcelona land zones - approximating the city's actual shape, excluding water
@@ -39,6 +41,8 @@ const BARCELONA_LAND_ZONES = [
 // Generate mock water meters positioned realistically across Barcelona's land areas
 const generateMockMeters = (count: number): WaterMeter[] => {
   const meters: WaterMeter[] = [];
+  const prefixes = ['AQUA', 'HYDRO', 'FLOW', 'STREAM', 'WAVE', 'CASCADE', 'BROOK'];
+  const suffixes = ['ALPHA', 'BETA', 'GAMMA', 'DELTA', 'ECHO', 'FOXTROT', 'GOLF', 'HOTEL'];
   
   for (let i = 0; i < count; i++) {
     // Randomly select a zone with weighted probability (central zones get more meters)
@@ -62,8 +66,14 @@ const generateMockMeters = (count: number): WaterMeter[] => {
     const lat = zone.minLat + Math.random() * (zone.maxLat - zone.minLat);
     const risk = Math.random() * 100;
     
+    // Generate a unique name
+    const prefix = prefixes[i % prefixes.length];
+    const suffix = suffixes[Math.floor(i / prefixes.length) % suffixes.length];
+    const number = String(i + 1).padStart(4, '0');
+    
     meters.push({
       id: `meter-${i}`,
+      name: `${prefix}-${suffix}-${number}`,
       coordinates: [lng, lat],
       status: risk > 80 ? 'alert' : risk > 50 ? 'warning' : 'normal',
       lastReading: Math.floor(1000 + Math.random() * 9000),
@@ -77,7 +87,8 @@ const generateMockMeters = (count: number): WaterMeter[] => {
 export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({ 
   onMeterSelect,
   simulateAlert = false,
-  onMetersChange
+  onMetersChange,
+  filterStatus = {normal: true, warning: true, alert: true}
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -87,6 +98,33 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
   useEffect(() => {
     onMetersChange?.(meters);
   }, [meters, onMetersChange]);
+
+  // Update map layer opacity when filter changes
+  useEffect(() => {
+    if (!map.current) return;
+
+    try {
+      // Update opacity for each layer based on filter status
+      if (map.current.getLayer('normal-meters')) {
+        map.current.setPaintProperty('normal-meters', 'circle-opacity', 
+          filterStatus.normal ? 0.8 : 0
+        );
+      }
+      if (map.current.getLayer('warning-meters')) {
+        map.current.setPaintProperty('warning-meters', 'circle-opacity',
+          filterStatus.warning ? 0.85 : 0
+        );
+      }
+      if (map.current.getLayer('alert-meters')) {
+        map.current.setPaintProperty('alert-meters', 'circle-opacity',
+          filterStatus.alert ? 0.9 : 0
+        );
+      }
+    } catch (error) {
+      // Layer might not be loaded yet, ignore error
+      console.debug('Layer not ready for filter update');
+    }
+  }, [filterStatus]);
 
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -112,12 +150,12 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
 
     // Add water meter data as a GeoJSON source
     map.current.on('load', () => {
-      const geojsonData = {
-        type: 'FeatureCollection',
+      const geojsonData: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection' as const,
         features: meters.map(meter => ({
-          type: 'Feature',
+          type: 'Feature' as const,
           geometry: {
-            type: 'Point',
+            type: 'Point' as const,
             coordinates: meter.coordinates
           },
           properties: {
@@ -143,9 +181,10 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
         filter: ['==', ['get', 'status'], 'normal'],
         paint: {
           'circle-radius': 2,
-          'circle-color': 'hsl(205, 85%, 45%)',
+          'circle-color': '#00a8ff',
           'circle-stroke-width': 1,
-          'circle-stroke-color': '#ffffff'
+          'circle-stroke-color': '#ffffff',
+          'circle-opacity': filterStatus.normal ? 0.8 : 0
         }
       });
 
@@ -156,10 +195,11 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
         source: 'water-meters',
         filter: ['==', ['get', 'status'], 'warning'],
         paint: {
-          'circle-radius': 2,
-          'circle-color': 'hsl(35, 95%, 60%)',
+          'circle-radius': 2.5,
+          'circle-color': '#ffb800',
           'circle-stroke-width': 1,
-          'circle-stroke-color': '#ffffff'
+          'circle-stroke-color': '#ffffff',
+          'circle-opacity': filterStatus.warning ? 0.85 : 0
         }
       });
 
@@ -170,10 +210,11 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
         source: 'water-meters',
         filter: ['==', ['get', 'status'], 'alert'],
         paint: {
-          'circle-radius': 2,
-          'circle-color': 'hsl(0, 75%, 58%)',
-          'circle-stroke-width': 1,
-          'circle-stroke-color': '#ffffff'
+          'circle-radius': 3,
+          'circle-color': '#e74c3c',
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': '#ffffff',
+          'circle-opacity': filterStatus.alert ? 0.9 : 0
         }
       });
 
@@ -190,7 +231,7 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
           
           const feature = e.features?.[0];
           if (feature) {
-            const meter = meters.find(m => m.id === feature.properties.id);
+                          const meter = meters.find(m => m.id === feature.properties.id);
             if (meter) {
               popup.setLngLat(e.lngLat)
                 .setHTML(`
@@ -240,8 +281,10 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
     <div className="relative w-full h-full">
       <div 
         ref={mapContainer} 
-        className="absolute inset-0 rounded-2xl overflow-hidden"
+        className="absolute inset-0 overflow-hidden"
       />
+      {/* Map overlay gradient for depth */}
+      <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-transparent to-background/5" />
     </div>
   );
 };

@@ -3,10 +3,11 @@ import { WaterMeterMap } from '@/components/WaterMeterMap';
 import { ControlPanel } from '@/components/ControlPanel';
 import { ExplanationSheet } from '@/components/ExplanationSheet';
 import { Dashboard } from '@/components/Dashboard';
-import { Droplets } from 'lucide-react';
+import { Droplets, Activity, TrendingUp, Shield } from 'lucide-react';
 
 interface WaterMeter {
   id: string;
+  name: string;
   coordinates: [number, number];
   status: 'normal' | 'warning' | 'alert';
   lastReading: number;
@@ -20,6 +21,11 @@ const Index = () => {
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [selectedMeter, setSelectedMeter] = useState<WaterMeter | null>(null);
   const [allMeters, setAllMeters] = useState<WaterMeter[]>([]);
+  const [filterStatus, setFilterStatus] = useState<{normal: boolean, warning: boolean, alert: boolean}>({
+    normal: true,
+    warning: true,
+    alert: true
+  });
 
   const handleTextExplanation = () => {
     setExplanationType('text');
@@ -33,10 +39,6 @@ const Index = () => {
     setTimeout(() => {
       console.log('🔊 Voice explanation starting...');
     }, 300);
-  };
-
-  const handleInfo = () => {
-    setSimulateAlert(!simulateAlert);
   };
 
   const handleDashboard = () => {
@@ -54,40 +56,121 @@ const Index = () => {
     setAllMeters(meters);
   };
 
+  // Calculate stats for the header
+  const stats = {
+    total: allMeters.length,
+    normal: allMeters.filter(m => m.status === 'normal').length,
+    warning: allMeters.filter(m => m.status === 'warning').length,
+    alert: allMeters.filter(m => m.status === 'alert').length,
+    avgRisk: allMeters.length > 0 
+      ? (allMeters.reduce((sum, m) => sum + m.predictedFailureRisk, 0) / allMeters.length).toFixed(1)
+      : '0'
+  };
+
   return (
-    <div className="relative min-h-screen w-full bg-background">
+    <div className="relative min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 overflow-hidden">
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(200,90%,50%,0.03),transparent_50%)]" />
+      
       {/* Header */}
-      <header className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-background/95 to-transparent backdrop-blur-sm">
-        <div className="container mx-auto px-6 py-6">
+      <header className="absolute top-0 left-0 right-0 z-30 glass-effect border-b border-border/50 shadow-medium">
+        <div className="container mx-auto px-6 py-5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-md">
-                <Droplets className="w-6 h-6 text-primary-foreground" />
+            {/* Logo & Branding */}
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center shadow-glow-primary">
+                  <Droplets className="w-6 h-6 text-primary-foreground" strokeWidth={2.5} />
+                </div>
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-accent rounded-full shadow-glow-accent animate-gentle-pulse" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-foreground">
-                  Barcelona Water Intelligence
+                <h1 className="text-2xl font-bold tracking-tight">
+                  <span className="text-gradient-primary">AquaSense</span>
+                  <span className="text-foreground"> Pro</span>
                 </h1>
-                <p className="text-sm text-muted-foreground">
-                  Predictive meter failure monitoring
+                <p className="text-sm text-muted-foreground font-medium">
+                  Predictive Water Intelligence
                 </p>
               </div>
             </div>
             
+            {/* Stats Cards */}
             <div className="flex items-center gap-4">
-              <div className="bg-card/80 backdrop-blur-sm border border-border rounded-xl px-4 py-2">
-                <div className="flex items-center gap-6">
+              <div className="flex items-center gap-3">
+                {/* Total Meters */}
+                <div className="glass-effect rounded-xl px-4 py-2.5 border border-border/50">
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-primary" />
-                    <span className="text-xs text-muted-foreground">Normal</span>
+                    <Activity className="w-4 h-4 text-primary" />
+                    <div>
+                      <p className="text-xs text-muted-foreground font-medium">Total</p>
+                      <p className="text-lg font-bold text-foreground">{stats.total}</p>
+                    </div>
                   </div>
+                </div>
+
+                {/* Normal Status */}
+                <button
+                  onClick={() => setFilterStatus({...filterStatus, normal: !filterStatus.normal})}
+                  className={`glass-effect rounded-xl px-4 py-2.5 border transition-all duration-300 ${
+                    filterStatus.normal 
+                      ? 'border-primary/30 hover:border-primary/50 bg-primary/5' 
+                      : 'border-border/30 hover:border-border/50 opacity-40'
+                  }`}
+                >
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-accent" />
-                    <span className="text-xs text-muted-foreground">Warning</span>
+                    <div className="w-2 h-2 rounded-full bg-primary shadow-glow-primary" />
+                    <div>
+                      <p className="text-xs text-muted-foreground font-medium">Normal</p>
+                      <p className="text-lg font-bold text-primary">{stats.normal}</p>
+                    </div>
                   </div>
+                </button>
+
+                {/* Warning Status */}
+                <button
+                  onClick={() => setFilterStatus({...filterStatus, warning: !filterStatus.warning})}
+                  className={`glass-effect rounded-xl px-4 py-2.5 border transition-all duration-300 ${
+                    filterStatus.warning 
+                      ? 'border-accent/30 hover:border-accent/50 bg-accent/5' 
+                      : 'border-border/30 hover:border-border/50 opacity-40'
+                  }`}
+                >
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-destructive animate-glow-pulse" />
-                    <span className="text-xs text-muted-foreground">Alert</span>
+                    <div className="w-2 h-2 rounded-full bg-accent" />
+                    <div>
+                      <p className="text-xs text-muted-foreground font-medium">Warning</p>
+                      <p className="text-lg font-bold text-accent">{stats.warning}</p>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Alert Status */}
+                <button
+                  onClick={() => setFilterStatus({...filterStatus, alert: !filterStatus.alert})}
+                  className={`glass-effect rounded-xl px-4 py-2.5 border transition-all duration-300 ${
+                    filterStatus.alert 
+                      ? 'border-destructive/30 hover:border-destructive/50 bg-destructive/5' 
+                      : 'border-border/30 hover:border-border/50 opacity-40'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-destructive" />
+                    <div>
+                      <p className="text-xs text-muted-foreground font-medium">Alert</p>
+                      <p className="text-lg font-bold text-destructive">{stats.alert}</p>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Average Risk */}
+                <div className="glass-effect rounded-xl px-4 py-2.5 border border-border/50 hover:border-primary/30 transition-all duration-300">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground font-medium">Avg Risk</p>
+                      <p className="text-lg font-bold text-foreground">{stats.avgRisk}%</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -96,20 +179,22 @@ const Index = () => {
         </div>
       </header>
 
-      {/* Map */}
-      <div className="h-screen w-full p-6 pt-28">
-        <WaterMeterMap
-          simulateAlert={simulateAlert}
-          onMeterSelect={handleMeterSelect}
-          onMetersChange={handleMetersChange}
-        />
+      {/* Map Container */}
+      <div className="h-screen w-full p-6 pt-32">
+        <div className="h-full w-full rounded-3xl overflow-hidden shadow-2xl border border-border/50 bg-card/50 backdrop-blur-sm">
+          <WaterMeterMap
+            simulateAlert={simulateAlert}
+            onMeterSelect={handleMeterSelect}
+            onMetersChange={handleMetersChange}
+            filterStatus={filterStatus}
+          />
+        </div>
       </div>
 
       {/* Control Panel */}
       <ControlPanel
         onTextExplanation={handleTextExplanation}
         onVoiceExplanation={handleVoiceExplanation}
-        onInfo={handleInfo}
         onDashboard={handleDashboard}
       />
 
