@@ -84,15 +84,11 @@ const Index = () => {
                 </div>
                 <div className="absolute -top-1 -right-1 w-4 h-4 bg-accent rounded-full shadow-glow-accent animate-gentle-pulse" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">
-                  <span className="text-gradient-primary">AquaSense</span>
-                  <span className="text-foreground"> Pro</span>
-                </h1>
-                <p className="text-sm text-muted-foreground font-medium">
-                  Predictive Water Intelligence
-                </p>
-              </div>
+                             <div>
+                 <p className="text-sm text-muted-foreground font-medium">
+                   Predictive Water Intelligence
+                 </p>
+               </div>
             </div>
             
             {/* Stats Cards */}
