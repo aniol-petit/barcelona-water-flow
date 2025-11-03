@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+ 
+# Data artifacts (large local files)
+data/@Dades_Comptadors_anonymized.parquet
+data/Dades_Comptadors_anonymized.parquet
+data/dades_comptadors.csv
