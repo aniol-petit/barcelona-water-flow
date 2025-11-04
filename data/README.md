@@ -31,8 +31,9 @@ Inclou dades fixes associades a cada pòlissa i al seu comptador instal·lat.
 
 - Les dades inclouen quatre municipis principals:  
   **00 — Barcelona**, **10 — L’Hospitalet de Llobregat**, **25 — Viladecans**, **47 — Santa Coloma de Gramenet**.  
-- El camp **US_AIGUA_GEST** presenta molts valors nuls (~11M registres).  
+- El camp **US_AIGUA_GEST** la majoria són D (domèstic, 5.57M). 2.22M comercials (C) i 5.8k municipal  
 - El període temporal abasta **de l’1 de gener al 31 de desembre de 2024**.  
-- Alguns registres poden contenir **consums anòmals** que no reflecteixen un ús real (errors o incidències).  
+- De totes les poliçes que hi ha (11797) només tenim la ubi de 3999.
+- No hi ha null values en les columnes poliza, fecha, consum
 
 ---
