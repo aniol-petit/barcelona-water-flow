@@ -1,5 +1,8 @@
 """
-Average CONSUMO_REAL over dates across ALL counters (no zero-run or min/max filters).
+Average CONSUMO_REAL over dates: ALL users vs DOMESTIC (D) users comparison.
+
+Plots both all users and domestic users on the same graphs for comparison.
+No zero-run or min/max filters applied.
 
 Usage:
   python data/plot_consumo_avg_all.py \
@@ -21,7 +24,7 @@ import matplotlib.pyplot as plt
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Plot average CONSUMO_REAL over time (all counters)")
+    p = argparse.ArgumentParser(description="Plot average CONSUMO_REAL over time (all users vs domestic users)")
     p.add_argument(
         "--parquet",
         type=str,
@@ -64,31 +67,52 @@ def main() -> None:
 
     con = duckdb.connect()
 
-    sql = f"""
+    # Query for all users
+    sql_all = f"""
         SELECT 
             FECHA::DATE AS day,
-            CONSUMO_REAL
+            CONSUMO_REAL,
+            'All users' AS user_type
         FROM '{parquet_path.as_posix()}'
         WHERE CONSUMO_REAL IS NOT NULL
     """
-    df = con.execute(sql).df()
-    if df.empty:
+    
+    # Query for domestic users only
+    sql_domestic = f"""
+        SELECT 
+            FECHA::DATE AS day,
+            CONSUMO_REAL,
+            'Domestic (D)' AS user_type
+        FROM '{parquet_path.as_posix()}'
+        WHERE CONSUMO_REAL IS NOT NULL
+          AND "US_AIGUA_GEST" = 'D'
+    """
+    
+    df_all = con.execute(sql_all).df()
+    df_domestic = con.execute(sql_domestic).df()
+    
+    if df_all.empty and df_domestic.empty:
         print("No data found in the provided parquet.")
         return
-
+    
+    # Combine both datasets
+    df = pd.concat([df_all, df_domestic], ignore_index=True)
+    
     df["day"] = pd.to_datetime(df["day"]).dt.tz_localize(None)
     if args.years > 0:
         end_date = df["day"].max()
         start_date = end_date - pd.DateOffset(years=args.years)
         df = df[(df["day"] >= start_date) & (df["day"] <= end_date)].copy()
 
-    # Daily average across all counters
-    daily_avg = df.groupby("day")["CONSUMO_REAL"].mean().reset_index(name="avg_consumo")
+    # Daily average per user type
+    daily_avg = df.groupby(["day", "user_type"])["CONSUMO_REAL"].mean().reset_index(name="avg_consumo")
 
+    # Apply smoothing per user type
     if args.smooth_days and args.smooth_days > 1:
-        daily_avg = daily_avg.sort_values("day").copy()
+        daily_avg = daily_avg.sort_values(["user_type", "day"]).copy()
         daily_avg["avg_consumo_smooth"] = (
-            daily_avg["avg_consumo"].rolling(args.smooth_days, min_periods=1).mean()
+            daily_avg.groupby("user_type")["avg_consumo"]
+            .transform(lambda s: s.rolling(args.smooth_days, min_periods=1).mean())
         )
         y_col = "avg_consumo_smooth"
         y_label = f"Average CONSUMO_REAL ({args.smooth_days}-day mean)"
@@ -96,25 +120,30 @@ def main() -> None:
         y_col = "avg_consumo"
         y_label = "Average CONSUMO_REAL"
 
-    # Plot line
+    # Plot line - both on same graph
     plt.figure(figsize=(12, 6))
-    sns.lineplot(data=daily_avg, x="day", y=y_col, color="#2563eb")
-    plt.title("Average CONSUMO_REAL over time (all counters)")
+    sns.lineplot(data=daily_avg, x="day", y=y_col, hue="user_type", palette=["#2563eb", "#10b981"])
+    plt.title("Average CONSUMO_REAL over time (all users vs domestic users)")
     plt.xlabel("Date")
     plt.ylabel(y_label)
+    plt.legend(title="User type")
     plt.tight_layout()
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out, dpi=150)
     print(f"Saved figure to {out.as_posix()}")
 
-    # Histogram
-    values = daily_avg[y_col].dropna()
+    # Histogram - both on same graph
     plt.figure(figsize=(10, 6))
-    sns.histplot(values, bins=args.bins, stat="count", color="#0ea5e9", edgecolor="white")
-    plt.title("Histogram of daily average CONSUMO_REAL (all counters)")
+    for user_type, color in [("All users", "#2563eb"), ("Domestic (D)", "#10b981")]:
+        values = daily_avg[daily_avg["user_type"] == user_type][y_col].dropna()
+        if not values.empty:
+            sns.histplot(values, bins=args.bins, stat="count", label=user_type, 
+                        alpha=0.6, color=color, edgecolor="white")
+    plt.title("Histogram of daily average CONSUMO_REAL (all users vs domestic users)")
     plt.xlabel("Average CONSUMO_REAL")
     plt.ylabel("Frequency")
+    plt.legend(title="User type")
     plt.tight_layout()
     hist_out = Path(args.hist_output)
     hist_out.parent.mkdir(parents=True, exist_ok=True)
@@ -124,5 +153,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
