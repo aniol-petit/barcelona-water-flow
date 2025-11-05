@@ -32,7 +32,7 @@ FROM readings;
 
 #  Unique values for x column with the distribution of the unique values
 SELECT
-  "NUM_MUN_SGAB",
+  "US_AIGUA_GEST",
   COUNT(*) AS count_rows,
   ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS pct_rows
 FROM readings
