@@ -36,10 +36,11 @@ def parse_args() -> argparse.Namespace:
         "--counters",
         nargs="*",
         default=[
-            "FMINFDB4M6OYGWSO",
-            "RNWNF3RD2ANYMX5L",
-            "67BOUTIYOJRL6DFG",
-            "FB6OJEB34IWJB5E6",
+            "VECWAVDUULZDSBOP",
+
+            #"RNWNF3RD2ANYMX5L",
+            #"67BOUTIYOJRL6DFG",
+            #"FB6OJEB34IWJB5E6",
         ],
         
         help="List of POLIZA_SUMINISTRO ids",
