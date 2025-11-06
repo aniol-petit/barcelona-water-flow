@@ -36,11 +36,17 @@ def parse_args() -> argparse.Namespace:
         "--counters",
         nargs="*",
         default=[
-            "VECWAVDUULZDSBOP",
-
-            #"RNWNF3RD2ANYMX5L",
-            #"67BOUTIYOJRL6DFG",
-            #"FB6OJEB34IWJB5E6",
+            # Top 10 most anomalous domestic meters (from Isolation Forest)
+            "ZV25DKTNIARFYEE4",  # Rank 1: Score 100.0, max ratio 256x
+            #"SM5CHGXWT6UVP2ME",  # Rank 2: Score 96.7, max ratio 159x
+            "2KYOLTMHADR4SQ5U",  # Rank 3: Score 95.5, max ratio 157x
+            "LNZFFJDYQV5NW3XF",  # Rank 4: Score 92.6, max ratio 191x
+            "GK3WKZ7JTTKYEEBO",  # Rank 5: Score 91.7, max ratio 83x
+            "JXUZKFPKFXGNG37P",  # Rank 6: Score 91.7, max ratio 76x
+            "Y6OIOKZQBEXHLQQH",  # Rank 7: Score 91.6, max ratio 120x
+            "XPO4Y2S5PWYUACAB",  # Rank 8: Score 91.3, max ratio 188x
+            "WC2NZBREDDHZNTQU",  # Rank 9: Score 90.9, max ratio 99x
+            "AWS2475ICUE3WNLL",  # Rank 10: Score 90.8, max ratio 134x
         ],
         
         help="List of POLIZA_SUMINISTRO ids",
