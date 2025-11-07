@@ -1,6 +1,7 @@
 
 import pandas as pd
-df = pd.read_parquet('Dades_comptadors_anonymized.parquet')
-df.to_csv('dades_comptadors.csv', index=False)
+df = pd.read_parquet('Consum anomalies facturacio complet_anonymized.parquet')
+df.to_csv('consum_dades.csv', index=False)
+
 
 

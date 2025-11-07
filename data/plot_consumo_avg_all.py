@@ -6,9 +6,9 @@ No zero-run or min/max filters applied.
 
 Usage:
   python data/plot_consumo_avg_all.py \
-    --parquet data/Dades_Comptadors_anonymized.parquet \
-    --output data/consumo_avg_all.png \
-    --hist_output data/consumo_avg_all_hist.png \
+    --parquet data/data/Dades_Comptadors_anonymized.parquet \
+    --output data/insights/consumo_avg_all.png \
+    --hist_output data/insights/consumo_avg_all_hist.png \
     --years 4 \
     --smooth_days 7 \
     --bins 60
@@ -28,19 +28,19 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--parquet",
         type=str,
-        default="data/Dades_Comptadors_anonymized.parquet",
+        default="data/data/Dades_Comptadors_anonymized.parquet",
         help="Path to parquet file",
     )
     p.add_argument(
         "--output",
         type=str,
-        default="data/consumo_avg_all.png",
+        default="data/insights/consumo_avg_all.png",
         help="Path to save the time-series figure",
     )
     p.add_argument(
         "--hist_output",
         type=str,
-        default="data/consumo_avg_all_hist.png",
+        default="data/insights/consumo_avg_all_hist.png",
         help="Path to save the histogram figure",
     )
     p.add_argument("--years", type=int, default=4, help="Number of most recent years to include (0 = all)")

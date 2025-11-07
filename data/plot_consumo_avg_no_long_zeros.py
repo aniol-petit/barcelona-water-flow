@@ -7,8 +7,8 @@ Definition: Keep POLIZA_SUMINISTRO whose maximum consecutive days with CONSUMO_R
 
 Usage:
   python data/plot_consumo_avg_no_long_zeros.py \
-    --parquet data/Dades_Comptadors_anonymized.parquet \
-    --output data/consumo_avg_no_long_zeros.png \
+    --parquet data/data/Dades_Comptadors_anonymized.parquet \
+    --output data/insights/consumo_avg_no_long_zeros.png \
     --zero_threshold 5 \
     --years 4 \
     --smooth_days 7
@@ -32,19 +32,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--parquet",
         type=str,
-        default="data/Dades_Comptadors_anonymized.parquet",
+        default="data/data/Dades_Comptadors_anonymized.parquet",
         help="Path to parquet file",
     )
     parser.add_argument(
         "--output",
         type=str,
-        default="data/consumo_avg_no_long_zeros.png",
+        default="data/insights/consumo_avg_no_long_zeros.png",
         help="Path to save the output figure (PNG)",
     )
     parser.add_argument(
         "--hist_output",
         type=str,
-        default="data/consumo_avg_no_long_zeros_hist.png",
+        default="data/insights/consumo_avg_no_long_zeros_hist.png",
         help="Path to save the histogram figure (PNG)",
     )
     parser.add_argument(

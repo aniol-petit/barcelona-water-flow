@@ -30,3 +30,4 @@ data/dades_comptadors.csv
 data/analytics.duckdb
 data/analytics.duckdb.wal
 data/queries_prova.sql
+*.csv

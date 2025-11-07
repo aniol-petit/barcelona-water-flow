@@ -18,7 +18,7 @@ print("=" * 80)
 print("\nStep 0-1: Loading and filtering data...")
 print("-" * 80)
 
-df = pd.read_parquet('Dades_Comptadors_anonymized.parquet')
+df = pd.read_parquet('data/Dades_Comptadors_anonymized.parquet')
 print(f"Total rows loaded: {len(df):,}")
 
 # Filter only domestic meters
@@ -55,7 +55,7 @@ print(f"Pivot matrix shape: {pivot_df.shape} (meters x dates)")
 print(f"Memory usage: {pivot_df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
 
 # Save pivoted matrix
-output_pivot_path = 'domestic_consumption_matrix.csv'
+output_pivot_path = 'data/domestic_consumption_matrix.csv'
 print(f"Saving pivoted matrix to: {output_pivot_path}")
 pivot_df.to_csv(output_pivot_path)
 print(">>> Pivoted matrix saved!")
@@ -97,7 +97,7 @@ df_features['r_ij'] = np.where(
 df_daily_features = df_features[['POLIZA_SUBM', 'FECHA', 'CONSUMO_REAL', 'z_ij', 'r_ij']].copy()
 
 # Save daily features
-output_daily_path = 'domestic_daily_features.csv'
+output_daily_path = 'data/domestic_daily_features.csv'
 print(f"Saving daily features to: {output_daily_path}")
 df_daily_features.to_csv(output_daily_path, index=False)
 print(">>> Daily features saved!")
@@ -211,7 +211,7 @@ print("\nStep 6: Exporting results...")
 print("-" * 80)
 
 # Save full results with anomaly scores
-output_scores_path = 'domestic_meter_anomaly_scores.csv'
+output_scores_path = 'data/domestic_meter_anomaly_scores.csv'
 print(f"Saving anomaly scores to: {output_scores_path}")
 aggregated_features.to_csv(output_scores_path, index=False)
 print(">>> Anomaly scores saved!")
@@ -219,7 +219,7 @@ print(">>> Anomaly scores saved!")
 # Save top anomalies (most suspicious meters)
 top_n = 100
 top_anomalies = aggregated_features[aggregated_features['anomaly_label'] == -1].head(top_n)
-output_top_path = 'top_100_anomalous_meters.csv'
+output_top_path = 'data/top_100_anomalous_meters.csv'
 print(f"\nSaving top {top_n} anomalous meters to: {output_top_path}")
 top_anomalies.to_csv(output_top_path, index=False)
 print(">>> Top anomalies saved!")

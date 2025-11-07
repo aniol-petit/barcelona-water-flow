@@ -3,8 +3,8 @@ Time-series plot of CONSUMO_REAL over dates for selected counters (last N years)
 
 Usage:
   python data/plot_consumo_timeseries.py \
-    --parquet data/Dades_Comptadors_anonymized.parquet \
-    --output data/consumo_timeseries.png \
+    --parquet data/data/Dades_Comptadors_anonymized.parquet \
+    --output data/insights/consumo_timeseries.png \
     --years 4 \
     --smooth_days 7
 """
@@ -23,13 +23,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--parquet",
         type=str,
-        default="data/Dades_Comptadors_anonymized.parquet",
+        default="data/data/Dades_Comptadors_anonymized.parquet",
         help="Path to parquet file",
     )
     parser.add_argument(
         "--output",
         type=str,
-        default="data/consumo_timeseries.png",
+        default="data/insights/consumo_timeseries.png",
         help="Output image path",
     )
     parser.add_argument(

@@ -5,7 +5,7 @@ import duckdb
 
 def main() -> None:
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    data_dir = os.path.join(project_root, 'data')
+    data_dir = os.path.join(project_root, 'data', 'data')
     db_path = os.path.join(data_dir, 'analytics.duckdb')
 
     # Candidate Parquet filenames (with and without @ prefix)
@@ -42,7 +42,7 @@ def main() -> None:
     print(res)
 
     print("You can now run queries against the persistent DB, e.g.:")
-    print("  duckdb data/analytics.duckdb")
+    print("  duckdb data/data/analytics.duckdb")
     print("  -- then run: SELECT * FROM readings LIMIT 10;")
 
 
