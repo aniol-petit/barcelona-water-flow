@@ -1,0 +1,9 @@
+# DuckDB Connection Information
+# This file contains the connection details for the analytics database
+
+Database Path: data/data/analytics.duckdb
+Absolute Path: C:\Users\janag\OneDrive\Documentos\GitHub\barcelona-water-flow\data\data\analytics.duckdb
+
+View: readings
+Parquet Source: data/data/Dades_Comptadors_anonymized.parquet
+
