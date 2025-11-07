@@ -29,5 +29,7 @@ data/Dades_Comptadors_anonymized.parquet
 data/dades_comptadors.csv
 data/analytics.duckdb
 data/analytics.duckdb.wal
+data/data/analytics.duckdb
+data/data/analytics.duckdb.wal
 data/queries_prova.sql
 *.csv
