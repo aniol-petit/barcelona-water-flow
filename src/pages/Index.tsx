@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { WaterMeterMap } from '@/components/WaterMeterMap';
 import { ControlPanel } from '@/components/ControlPanel';
-import { ExplanationSheet } from '@/components/ExplanationSheet';
+import { InsightsSheet } from '@/components/InsightsSheet';
 import { Dashboard } from '@/components/Dashboard';
 import { Droplets, Activity, TrendingUp, Shield } from 'lucide-react';
 
@@ -15,8 +15,7 @@ interface WaterMeter {
 }
 
 const Index = () => {
-  const [explanationOpen, setExplanationOpen] = useState(false);
-  const [explanationType, setExplanationType] = useState<'text' | 'voice'>('text');
+  const [insightsOpen, setInsightsOpen] = useState(false);
   const [simulateAlert, setSimulateAlert] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [selectedMeter, setSelectedMeter] = useState<WaterMeter | null>(null);
@@ -27,18 +26,8 @@ const Index = () => {
     alert: true
   });
 
-  const handleTextExplanation = () => {
-    setExplanationType('text');
-    setExplanationOpen(true);
-  };
-
-  const handleVoiceExplanation = () => {
-    setExplanationType('voice');
-    setExplanationOpen(true);
-    // Simulate voice chime
-    setTimeout(() => {
-      console.log('🔊 Voice explanation starting...');
-    }, 300);
+  const handleInsights = () => {
+    setInsightsOpen(true);
   };
 
   const handleDashboard = () => {
@@ -189,17 +178,15 @@ const Index = () => {
 
       {/* Control Panel */}
       <ControlPanel
-        onTextExplanation={handleTextExplanation}
-        onVoiceExplanation={handleVoiceExplanation}
+        onInsights={handleInsights}
         onDashboard={handleDashboard}
       />
 
-      {/* Explanation Sheet */}
-      <ExplanationSheet
-        isOpen={explanationOpen}
-        onClose={() => setExplanationOpen(false)}
-        type={explanationType}
-        selectedMeter={selectedMeter}
+      {/* Insights Sheet */}
+      <InsightsSheet
+        isOpen={insightsOpen}
+        onClose={() => setInsightsOpen(false)}
+        meters={allMeters}
       />
 
       {/* Dashboard */}

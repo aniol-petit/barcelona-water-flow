@@ -77,3 +77,7 @@ SELECT
     last_zero_date
 FROM consecutive_zeros
 ORDER BY consecutive_zero_count DESC, "POLIZA_SUMINISTRO", first_zero_date;
+
+
+
+SELECT COUNT(*) FROM readings WHERE "consumo_real" IS NULL;
