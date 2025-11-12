@@ -1,51 +1,70 @@
-#Unique values COUNT for each column (all in one query)
+SHOW TABLES;
+
+-- ============================================================================
+-- QUERY 1: Unique values COUNT for each column (all in one query)
+-- ============================================================================
+-- Note: All metadata columns are now in counter_metadata table
 SELECT 'SECCIO_CENSAL' AS column_name, COUNT(DISTINCT "SECCIO_CENSAL") AS unique_count
-FROM readings
+FROM counter_metadata
 UNION ALL
 SELECT 'POLIZA_SUMINISTRO', COUNT(DISTINCT "POLIZA_SUMINISTRO")
-FROM readings
+FROM counter_metadata
 UNION ALL
 SELECT 'US_AIGUA_GEST', COUNT(DISTINCT "US_AIGUA_GEST")
-FROM readings
+FROM counter_metadata
 UNION ALL
 SELECT 'NUM_MUN_SGAB', COUNT(DISTINCT "NUM_MUN_SGAB")
-FROM readings
+FROM counter_metadata
 UNION ALL
 SELECT 'NUM_DTE_MUNI', COUNT(DISTINCT "NUM_DTE_MUNI")
-FROM readings
+FROM counter_metadata
 UNION ALL
 SELECT 'NUM_COMPLET', COUNT(DISTINCT "NUM_COMPLET")
-FROM readings
+FROM counter_metadata
 UNION ALL
 SELECT 'DATA_INST_COMP', COUNT(DISTINCT "DATA_INST_COMP")
-FROM readings
+FROM counter_metadata
 UNION ALL
 SELECT 'MARCA_COMP', COUNT(DISTINCT "MARCA_COMP")
-FROM readings
+FROM counter_metadata
 UNION ALL
 SELECT 'CODI_MODEL', COUNT(DISTINCT "CODI_MODEL")
-FROM readings
+FROM counter_metadata
 UNION ALL
 SELECT 'DIAM_COMP', COUNT(DISTINCT "DIAM_COMP")
-FROM readings;
+FROM counter_metadata;
 
 
-#  Unique values for x column with the distribution of the unique values
+-- ============================================================================
+-- QUERY 2: Unique values for US_AIGUA_GEST with the distribution
+-- ============================================================================
+-- Note: Since each counter has one US_AIGUA_GEST value, we count counters, not rows
 SELECT
   "US_AIGUA_GEST",
-  COUNT(*) AS count_rows,
-  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS pct_rows
-FROM readings
+  COUNT(*) AS count_counters,
+  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS pct_counters
+FROM counter_metadata
 GROUP BY 1
-ORDER BY count_rows DESC;
+ORDER BY count_counters DESC;
 
 
--- Percentage of rows with zero consumption values
-SELECT ROUND(COUNT(*)/(SELECT COUNT(*) FROM readings) * 100, 2) FROM readings WHERE "CONSUMO_REAL" = 0;
+-- ============================================================================
+-- QUERY 3: Percentage of consumption values that are zero
+-- ============================================================================
+-- Using consumption_data view
+SELECT 
+    ROUND(
+        COUNT(*) * 100.0 / (SELECT COUNT(*) FROM consumption_data),
+        2
+    ) AS pct_zero_consumption
+FROM consumption_data
+WHERE CONSUMO_REAL = 0;
 
 
-
--- This query identifies POLIZA_SUMINISTRO that have consecutive zero consumption values
+-- ============================================================================
+-- QUERY 4: POLIZA_SUMINISTRO with consecutive zero consumption values
+-- ============================================================================
+-- Using consumption_data view
 WITH ordered_readings AS (
     SELECT 
         "POLIZA_SUMINISTRO",
@@ -56,7 +75,7 @@ WITH ordered_readings AS (
         -- Create groups for consecutive zeros using running sum
         SUM(CASE WHEN CONSUMO_REAL = 0 THEN 0 ELSE 1 END) 
             OVER (PARTITION BY "POLIZA_SUMINISTRO" ORDER BY FECHA) AS zero_group
-    FROM readings
+    FROM consumption_data
 ),
 consecutive_zeros AS (
     SELECT 
@@ -79,5 +98,75 @@ FROM consecutive_zeros
 ORDER BY consecutive_zero_count DESC, "POLIZA_SUMINISTRO", first_zero_date;
 
 
+-- ============================================================================
+-- QUERY 5: Count of rows with zero consumption
+-- ============================================================================
+-- Using consumption_data view
+SELECT COUNT(*) AS total_zero_consumption_rows
+FROM consumption_data
+WHERE CONSUMO_REAL = 0;
 
-SELECT COUNT(*) FROM readings WHERE "consumo_real" IS NULL;
+
+-- ============================================================================
+-- QUERY 6: Count distinct SECCIO_CENSAL per POLIZA_SUMINISTRO
+-- ============================================================================
+-- Since each counter should have one SECCIO_CENSAL, this should mostly be 1
+-- But we'll check in case there are any duplicates
+SELECT 
+    "POLIZA_SUMINISTRO", 
+    COUNT(DISTINCT "SECCIO_CENSAL") AS distinct_seccio_censal_count
+FROM counter_metadata
+GROUP BY "POLIZA_SUMINISTRO"
+HAVING COUNT(DISTINCT "SECCIO_CENSAL") > 1
+ORDER BY distinct_seccio_censal_count DESC;
+
+
+-- ============================================================================
+-- ADDITIONAL USEFUL QUERIES FOR NEW STRUCTURE
+-- ============================================================================
+
+-- Get consumption for a specific counter on specific dates (using consumption_data view)
+SELECT 
+    "POLIZA_SUMINISTRO",
+    FECHA,
+    CONSUMO_REAL
+FROM consumption_data
+WHERE "POLIZA_SUMINISTRO" = 'YOUR_COUNTER_ID_HERE'
+  AND FECHA IN ('2024-01-01', '2024-06-15', '2024-12-31')
+ORDER BY FECHA;
+
+-- Get consumption time series for a specific counter
+SELECT 
+    "POLIZA_SUMINISTRO",
+    FECHA,
+    CONSUMO_REAL
+FROM consumption_data
+WHERE "POLIZA_SUMINISTRO" = 'YOUR_COUNTER_ID_HERE'
+ORDER BY FECHA
+LIMIT 100;
+
+-- Join consumption and metadata
+SELECT 
+    cd."POLIZA_SUMINISTRO",
+    cm.US_AIGUA_GEST,
+    cm.NUM_MUN_SGAB,
+    cm.SECCIO_CENSAL,
+    cd.FECHA,
+    cd.CONSUMO_REAL
+FROM consumption_data cd
+JOIN counter_metadata cm ON cd."POLIZA_SUMINISTRO" = cm."POLIZA_SUMINISTRO"
+WHERE cm.US_AIGUA_GEST = 'D'  -- Domestic only
+LIMIT 10;
+
+-- Count total rows in consumption data (for reference)
+SELECT COUNT(*) AS total_rows_in_consumption_data
+FROM consumption_data;
+
+
+-- Count rows where SECCIO_CENSAL has exactly 10 digits (when converted to string)
+-- Find SECCIO_CENSAL values containing '08190' (cast to string for LIKE)
+SELECT "SECCIO_CENSAL" 
+FROM counter_metadata 
+WHERE CAST("SECCIO_CENSAL" AS VARCHAR) LIKE '%08190%';
+
+
