@@ -1,0 +1,4 @@
+"""
+Autoencoder model architecture definition.
+"""
+

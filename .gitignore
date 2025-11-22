@@ -33,3 +33,10 @@ data/data/analytics.duckdb
 data/data/analytics.duckdb.wal
 data/queries_prova.sql
 *.csv
+
+# Model files (save models in data/models/)
+data/models/*.pth
+data/models/*.joblib
+data/models/*.pkl
+data/models/*.h5
+data/models/*.pt
