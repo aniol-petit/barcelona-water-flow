@@ -167,6 +167,70 @@ FROM consumption_data;
 -- Find SECCIO_CENSAL values containing '08190' (cast to string for LIKE)
 SELECT "SECCIO_CENSAL" 
 FROM counter_metadata 
-WHERE CAST("SECCIO_CENSAL" AS VARCHAR) LIKE '%08190%';
+WHERE CAST("SECCIO_CENSAL" AS VARCHAR) LIKE '%801901050%';
 
 
+select distinct("NUM_MUN_SGAB") from counter_metadata;
+select COUNT(*) from counter_metadata where "NUM_MUN_SGAB" = 0 ;
+
+
+SELECT COUNT(DISTINCT("DIAM_COMP"))FROM counter_metadata;
+
+-- ============================================================================
+-- PHYSICAL FEATURES QUERY (Stage I reference)
+-- ============================================================================
+WITH domestic AS (
+        SELECT
+            cm."POLIZA_SUMINISTRO"::VARCHAR AS meter_id,
+            CAST(cm.DATA_INST_COMP AS DATE) AS installation_date,
+            CAST(cm.DIAM_COMP AS DOUBLE) AS diameter,
+            CAST(cm.MARCA_COMP AS VARCHAR) AS marca_comp,
+            CAST(cm.CODI_MODEL AS VARCHAR) AS codi_model,
+            CAST(cd.FECHA AS DATE) AS fecha,
+            cd.CONSUMO_REAL
+        FROM counter_metadata cm
+        JOIN consumption_data cd
+            ON cm."POLIZA_SUMINISTRO" = cd."POLIZA_SUMINISTRO"
+        WHERE cm.US_AIGUA_GEST = 'D'
+    ),
+    metadata AS (
+        SELECT
+            meter_id,
+            MIN(installation_date) AS installation_date,
+            MIN(diameter) AS diameter,
+            MIN(marca_comp) AS marca_comp,
+            MIN(codi_model) AS codi_model
+        FROM domestic
+        GROUP BY meter_id
+    ),
+    yearly AS (
+        SELECT
+            meter_id,
+            EXTRACT(YEAR FROM fecha) AS year,
+            AVG(CONSUMO_REAL) AS avg_consumption
+        FROM domestic
+        GROUP BY meter_id, year
+    ),
+    avg_yearly AS (
+        SELECT
+            meter_id,
+            AVG(avg_consumption) AS avg_yearly
+        FROM yearly
+        GROUP BY meter_id
+    )
+    SELECT
+        m.meter_id,
+        m.installation_date,
+        m.diameter,
+        m.marca_comp,
+        m.codi_model,
+        COALESCE(a.avg_yearly, 0) AS avg_yearly
+    FROM metadata m
+    LEFT JOIN avg_yearly a USING (meter_id);
+
+    SELECT count(distinct("DIAM_COMP")) FROM counter_metadata;
+    SELECT COUNT(*) AS total_combinations_between_marca_and_model
+    FROM (
+        SELECT DISTINCT "MARCA_COMP", "CODI_MODEL"
+        FROM counter_metadata
+    );
