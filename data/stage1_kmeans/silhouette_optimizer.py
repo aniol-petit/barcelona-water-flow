@@ -80,7 +80,6 @@ def find_optimal_k(
             random_state=random_state,
             n_init=n_init,
             max_iter=max_iter,
-            n_jobs=-1,
         )
         labels = kmeans.fit_predict(X)
 

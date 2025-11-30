@@ -3,11 +3,11 @@ Utilities to build the physical feature matrix used by Stage I (KMeans)
 by querying the DuckDB views (`counter_metadata`, `consumption_data`).
 
 The feature set contains, per domestic meter:
-- ``age``: years since installation (2024 – installation year).
+- ``age``: years since installation (2024 – installation year, with fractional precision).
 - ``diameter``: physical diameter of the meter (``DIAM_COMP``).
 - ``canya``: proxy for accumulated consumption
-  (median of yearly mean consumptions × age).
-- ``brand_model``: joint categorical label for ``MARCA_COMP`` + ``CODI_MODEL``.
+  (median of yearly averages × age).
+- ``brand_model``: joint categorical label for ``MARCA_COMP`` + ``CODI_MODEL`` (one-hot encoded, 27 categories).
 """
 
 from __future__ import annotations
@@ -57,36 +57,40 @@ def compute_physical_features(
     con = duckdb.connect(database=str(path), read_only=True)
 
     sql = """
-    WITH domestic AS (
+    WITH metadata AS (
+        -- First, get all domestic meters from counter_metadata
+        -- This preserves ALL brand_model combinations
         SELECT
-            cm."POLIZA_SUMINISTRO"::VARCHAR AS meter_id,
-            CAST(cm.DATA_INST_COMP AS DATE) AS installation_date,
-            CAST(cm.DIAM_COMP AS DOUBLE) AS diameter,
-            CAST(cm.MARCA_COMP AS VARCHAR) AS marca_comp,
-            CAST(cm.CODI_MODEL AS VARCHAR) AS codi_model,
+            "POLIZA_SUMINISTRO"::VARCHAR AS meter_id,
+            CAST(DATA_INST_COMP AS DATE) AS installation_date,
+            CAST(DIAM_COMP AS DOUBLE) AS diameter,
+            CAST(MARCA_COMP AS VARCHAR) AS marca_comp,
+            CAST(CODI_MODEL AS VARCHAR) AS codi_model
+        FROM counter_metadata
+        WHERE US_AIGUA_GEST = 'D'
+    ),
+    consumption_with_metadata AS (
+        -- LEFT JOIN to consumption_data to preserve all meters
+        SELECT
+            m.meter_id,
+            m.installation_date,
+            m.diameter,
+            m.marca_comp,
+            m.codi_model,
             CAST(cd.FECHA AS DATE) AS fecha,
             cd.CONSUMO_REAL
-        FROM counter_metadata cm
-        JOIN consumption_data cd
-            ON cm."POLIZA_SUMINISTRO" = cd."POLIZA_SUMINISTRO"
-        WHERE cm.US_AIGUA_GEST = 'D'
-    ),
-    metadata AS (
-        SELECT
-            meter_id,
-            MIN(installation_date) AS installation_date,
-            MIN(diameter) AS diameter,
-            MIN(marca_comp) AS marca_comp,
-            MIN(codi_model) AS codi_model
-        FROM domestic
-        GROUP BY meter_id
+        FROM metadata m
+        LEFT JOIN consumption_data cd
+            ON m.meter_id = cd."POLIZA_SUMINISTRO"
     ),
     yearly AS (
+        -- Aggregate consumption by year (only for meters with consumption data)
         SELECT
             meter_id,
             EXTRACT(YEAR FROM fecha) AS year,
             AVG(CONSUMO_REAL) AS avg_consumption
-        FROM domestic
+        FROM consumption_with_metadata
+        WHERE fecha IS NOT NULL AND CONSUMO_REAL IS NOT NULL
         GROUP BY meter_id, year
     ),
     avg_yearly AS (
@@ -191,7 +195,27 @@ def build_stage1_feature_matrix(
     # Combine scaled numeric features
     scaled_df = pd.concat([age_diameter_df, canya_df], axis=1)
 
-    encoder = OneHotEncoder(sparse_output=False, handle_unknown="ignore")
+    # Get all possible brand_model combinations from database to ensure all 27 are encoded
+    path = Path(db_path)
+    con = duckdb.connect(database=str(path), read_only=True)
+    all_brand_models_sql = """
+        SELECT DISTINCT 
+            CONCAT_WS('::', CAST(MARCA_COMP AS VARCHAR), CAST(CODI_MODEL AS VARCHAR)) AS brand_model
+        FROM counter_metadata
+        WHERE US_AIGUA_GEST = 'D'
+        ORDER BY brand_model
+    """
+    all_brand_models_df = con.execute(all_brand_models_sql).df()
+    con.close()
+    
+    all_brand_models = sorted(all_brand_models_df["brand_model"].tolist())
+    
+    # Use explicit categories to ensure all 27 combinations are encoded
+    encoder = OneHotEncoder(
+        categories=[all_brand_models],
+        sparse_output=False,
+        handle_unknown="ignore"
+    )
     brand_encoded = encoder.fit_transform(raw_features[["brand_model"]])
     brand_columns = [f"brand_model__{cat}" for cat in encoder.categories_[0]]
     brand_df = pd.DataFrame(brand_encoded, columns=brand_columns, index=raw_features.index)
@@ -281,7 +305,6 @@ def perform_stage1_kmeans(
         random_state=random_state,
         n_init=n_init,
         max_iter=max_iter,
-        n_jobs=-1,
     )
     cluster_labels = kmeans.fit_predict(X)
     

@@ -13,13 +13,36 @@ OUTPUT_DIR = Path(__file__).resolve().parent.parent / "stage1_outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
-def run_stage1_pipeline(k=None):
+def run_stage1_pipeline(k=None, verbose=True):
+    if verbose:
+        print("=" * 60)
+        print("STAGE I: KMeans Clustering on Physical Features")
+        print("=" * 60)
+        print("\nStep 1: Computing physical features...")
+    
     physical_features = compute_physical_features()
-    cluster_labels_df, _ = perform_stage1_kmeans(k=k, verbose=False)
+    
+    if verbose:
+        print(f"✓ Loaded {len(physical_features):,} domestic meters")
+        print(f"  Features: age, diameter, canya, brand_model")
+        print("\nStep 2: Performing KMeans clustering...")
+    
+    cluster_labels_df, kmeans_model = perform_stage1_kmeans(k=k, verbose=verbose)
+    
+    if verbose:
+        print("\nStep 3: Merging results...")
     
     result = physical_features.merge(cluster_labels_df, on="meter_id")
     output_path = OUTPUT_DIR / "stage1_physical_features_with_clusters.csv"
     result.to_csv(output_path, index=False)
+    
+    if verbose:
+        print(f"✓ Results saved to: {output_path}")
+        print(f"\nCluster distribution:")
+        print(cluster_labels_df["cluster_label"].value_counts().sort_index())
+        print("\n" + "=" * 60)
+        print("STAGE I COMPLETE!")
+        print("=" * 60)
     
     return result
 
