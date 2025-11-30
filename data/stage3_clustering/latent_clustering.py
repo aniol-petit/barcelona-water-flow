@@ -16,6 +16,9 @@ from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score, silho
 DEFAULT_LATENT_PATH = Path(__file__).resolve().parents[1] / "stage2_outputs" / "latent_representations.csv"
 DEFAULT_MODELS_DIR = Path(__file__).resolve().parents[1] / "models"
 
+# Excluded counters
+EXCLUDED_COUNTERS = ["5J526OPLVVS2L47O", "QEPJ3GL36LPH6JMU"]
+
 
 def load_latent_representations(
     latent_path: str | Path = DEFAULT_LATENT_PATH,
@@ -38,6 +41,14 @@ def load_latent_representations(
         raise FileNotFoundError(f"Latent representations file not found: {latent_path}")
     
     df = pd.read_csv(latent_path)
+    
+    # Filter out excluded counters
+    if EXCLUDED_COUNTERS:
+        initial_count = len(df)
+        df = df[~df["meter_id"].isin(EXCLUDED_COUNTERS)].copy()
+        removed = initial_count - len(df)
+        if removed > 0:
+            print(f"Filtered out {removed} excluded counter(s)")
     
     # Extract meter IDs and latent vectors
     meter_ids = df["meter_id"].values

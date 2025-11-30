@@ -40,6 +40,9 @@ STAGE1_FEATURE_VECTORS = STAGE1_OUTPUT_DIR / "feature_vectors.csv"
 STAGE2_LATENT_OUTPUT = STAGE2_OUTPUT_DIR / "latent_representations.csv"
 MODEL_PATH = MODELS_DIR / "stage2_autoencoder.pth"
 
+# Excluded counters
+EXCLUDED_COUNTERS = ["5J526OPLVVS2L47O", "QEPJ3GL36LPH6JMU"]
+
 # Create output directories
 STAGE2_OUTPUT_DIR.mkdir(exist_ok=True)
 MODELS_DIR.mkdir(exist_ok=True)
@@ -128,6 +131,15 @@ def run_stage2(
         )
     
     df = pd.read_csv(feature_vectors_path)
+    
+    # Filter out excluded counters
+    if EXCLUDED_COUNTERS:
+        initial_count = len(df)
+        df = df[~df["meter_id"].isin(EXCLUDED_COUNTERS)].copy()
+        removed = initial_count - len(df)
+        if removed > 0 and verbose:
+            print(f"  ✓ Filtered out {removed} excluded counter(s)")
+    
     if verbose:
         print(f"  ✓ Loaded {len(df):,} meters")
         print(f"  ✓ Total columns: {len(df.columns)}")
@@ -258,6 +270,61 @@ def run_stage2(
 
 
 if __name__ == "__main__":
-    # Run with default parameters
-    latent_df, model = run_stage2(verbose=True)
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description="Stage 2: Train autoencoder and extract latent representations"
+    )
+    
+    parser.add_argument(
+        "--latent-dim",
+        type=int,
+        default=8,
+        help="Dimension of latent representation Z (default: 8)",
+    )
+    parser.add_argument(
+        "--num-epochs",
+        type=int,
+        default=100,
+        help="Number of training epochs (default: 100)",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=64,
+        help="Batch size for training (default: 64)",
+    )
+    parser.add_argument(
+        "--learning-rate",
+        type=float,
+        default=0.001,
+        help="Learning rate (default: 0.001)",
+    )
+    parser.add_argument(
+        "--feature-vectors",
+        type=str,
+        default=None,
+        help="Path to feature vectors CSV (default: stage1_outputs/feature_vectors.csv)",
+    )
+    parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducibility (default: 42)",
+    )
+    
+    args = parser.parse_args()
+    
+    feature_vectors_path = args.feature_vectors if args.feature_vectors else STAGE1_FEATURE_VECTORS
+    
+    # Run with specified parameters
+    latent_df, model = run_stage2(
+        feature_vectors_path=feature_vectors_path,
+        latent_dim=args.latent_dim,
+        num_epochs=args.num_epochs,
+        batch_size=args.batch_size,
+        learning_rate=args.learning_rate,
+        random_seed=args.random_seed,
+        verbose=True,
+    )
 

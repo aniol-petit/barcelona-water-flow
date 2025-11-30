@@ -26,6 +26,7 @@ try:
         DEFAULT_DB_PATH,
         CURRENT_YEAR,
         compute_physical_features,
+        EXCLUDED_COUNTERS,
     )
 except ImportError:
     # When run directly, add parent directory to path
@@ -34,6 +35,7 @@ except ImportError:
         DEFAULT_DB_PATH,
         CURRENT_YEAR,
         compute_physical_features,
+        EXCLUDED_COUNTERS,
     )
 
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "stage1_outputs"
@@ -74,11 +76,16 @@ def compute_monthly_averages(
 
     con = duckdb.connect(database=str(path), read_only=True)
 
+    # Build exclusion clause for SQL
+    excluded_list = "', '".join(EXCLUDED_COUNTERS)
+    exclusion_clause = f"AND \"POLIZA_SUMINISTRO\" NOT IN ('{excluded_list}')" if EXCLUDED_COUNTERS else ""
+    
     # Get all domestic meters first
-    meters_sql = """
+    meters_sql = f"""
         SELECT DISTINCT "POLIZA_SUMINISTRO"::VARCHAR AS meter_id
         FROM counter_metadata
         WHERE US_AIGUA_GEST = 'D'
+        {exclusion_clause}
     """
     meters_df = con.execute(meters_sql).df()
 
@@ -86,7 +93,7 @@ def compute_monthly_averages(
         raise ValueError("No domestic meters found.")
 
     # Compute monthly averages for each meter
-    monthly_sql = """
+    monthly_sql = f"""
     WITH monthly_consumption AS (
         SELECT
             cd."POLIZA_SUMINISTRO"::VARCHAR AS meter_id,
@@ -99,6 +106,7 @@ def compute_monthly_averages(
         WHERE cm.US_AIGUA_GEST = 'D'
           AND EXTRACT(YEAR FROM cd.FECHA) BETWEEN ? AND ?
           AND cd.CONSUMO_REAL IS NOT NULL
+          {exclusion_clause}
         GROUP BY meter_id, year, month
     )
     SELECT

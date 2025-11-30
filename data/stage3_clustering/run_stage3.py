@@ -112,9 +112,16 @@ def main():
     if args.db_path is None:
         args.db_path = Path(__file__).resolve().parents[1] / "analytics.duckdb"
     
+    # If auto-optimize is enabled, ignore n_clusters (set to None)
+    n_clusters_for_clustering = None if args.auto_optimize else args.n_clusters
+    
     print("=" * 80)
     print("STAGE 3: LATENT SPACE CLUSTERING AND ANALYSIS")
     print("=" * 80)
+    if args.auto_optimize:
+        print(f"\nAuto-optimization enabled: Will test k values from {k_range.start} to {k_range.stop-1}")
+    else:
+        print(f"\nUsing fixed number of clusters: {args.n_clusters}")
     
     # Step 1: Perform clustering
     print("\n" + "-" * 80)
@@ -124,7 +131,7 @@ def main():
     cluster_labels_df, clustering_model = cluster_latent_space(
         latent_path=args.latent_path,
         method=args.method,
-        n_clusters=args.n_clusters,
+        n_clusters=n_clusters_for_clustering,
         auto_optimize_k=args.auto_optimize,
         k_range=k_range,
         dbscan_eps=args.dbscan_eps,

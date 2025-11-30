@@ -24,6 +24,9 @@ CURRENT_YEAR = 2024
 DEFAULT_DB_PATH = Path(__file__).resolve().parents[1] / "analytics.duckdb"
 NUMERIC_FEATURES = ["age", "diameter", "canya"]
 
+# Excluded counters
+EXCLUDED_COUNTERS = ["5J526OPLVVS2L47O", "QEPJ3GL36LPH6JMU"]
+
 
 def compute_physical_features(
     *,
@@ -56,7 +59,11 @@ def compute_physical_features(
 
     con = duckdb.connect(database=str(path), read_only=True)
 
-    sql = """
+    # Build exclusion clause for SQL
+    excluded_list = "', '".join(EXCLUDED_COUNTERS)
+    exclusion_clause = f"AND \"POLIZA_SUMINISTRO\" NOT IN ('{excluded_list}')" if EXCLUDED_COUNTERS else ""
+    
+    sql = f"""
     WITH metadata AS (
         -- First, get all domestic meters from counter_metadata
         -- This preserves ALL brand_model combinations
@@ -68,6 +75,7 @@ def compute_physical_features(
             CAST(CODI_MODEL AS VARCHAR) AS codi_model
         FROM counter_metadata
         WHERE US_AIGUA_GEST = 'D'
+        {exclusion_clause}
     ),
     consumption_with_metadata AS (
         -- LEFT JOIN to consumption_data to preserve all meters
