@@ -6,7 +6,7 @@ The feature set contains, per domestic meter:
 - ``age``: years since installation (2024 – installation year).
 - ``diameter``: physical diameter of the meter (``DIAM_COMP``).
 - ``canya``: proxy for accumulated consumption
-  (average of yearly mean consumptions × age).
+  (median of yearly mean consumptions × age).
 - ``brand_model``: joint categorical label for ``MARCA_COMP`` + ``CODI_MODEL``.
 """
 
@@ -17,6 +17,7 @@ from typing import Iterable, Tuple
 
 import duckdb
 import pandas as pd
+from sklearn.cluster import KMeans
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, OneHotEncoder
 
 CURRENT_YEAR = 2024
@@ -205,6 +206,96 @@ def build_stage1_feature_matrix(
     )
 
     return features, minmax_scaler, standard_scaler, encoder
+
+
+def perform_stage1_kmeans(
+    *,
+    k: int | None = None,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    random_state: int = 42,
+    n_init: int = 10,
+    max_iter: int = 300,
+    verbose: bool = True,
+) -> Tuple[pd.DataFrame, KMeans]:
+    """
+    Perform KMeans clustering on physical features and return cluster labels.
+    
+    This function performs the final Stage I KMeans clustering on normalized
+    physical features. The cluster labels can then be used as an additional
+    feature in the autoencoder input.
+    
+    Parameters
+    ----------
+    k:
+        Number of clusters. If None, will use find_optimal_k() to determine
+        the optimal k based on silhouette score.
+    db_path:
+        Path to DuckDB database.
+    random_state:
+        Random seed for reproducibility.
+    n_init:
+        Number of KMeans initializations.
+    max_iter:
+        Maximum iterations for KMeans.
+    verbose:
+        If True, print progress information.
+    
+    Returns
+    -------
+    tuple
+        (cluster_labels_df, fitted_kmeans_model)
+        - cluster_labels_df: DataFrame with columns ['meter_id', 'cluster_label']
+        - fitted_kmeans_model: The fitted KMeans model
+    """
+    from .silhouette_optimizer import find_optimal_k
+    
+    # Build feature matrix
+    if verbose:
+        print("Building feature matrix...")
+    features, _, _, _ = build_stage1_feature_matrix(db_path=db_path)
+    
+    # Extract feature columns (exclude meter_id)
+    feature_cols = [col for col in features.columns if col != "meter_id"]
+    X = features[feature_cols].values
+    
+    # Determine k if not provided
+    if k is None:
+        if verbose:
+            print("Finding optimal k using silhouette score...")
+        optimal_k, _, _ = find_optimal_k(
+            db_path=db_path,
+            random_state=random_state,
+            n_init=n_init,
+            max_iter=max_iter,
+            verbose=verbose,
+        )
+        k = optimal_k
+        if verbose:
+            print(f"Using optimal k = {k}")
+    
+    # Perform KMeans clustering
+    if verbose:
+        print(f"Performing KMeans clustering with k={k}...")
+    kmeans = KMeans(
+        n_clusters=k,
+        random_state=random_state,
+        n_init=n_init,
+        max_iter=max_iter,
+        n_jobs=-1,
+    )
+    cluster_labels = kmeans.fit_predict(X)
+    
+    # Create DataFrame with meter_id and cluster_label
+    cluster_labels_df = pd.DataFrame({
+        "meter_id": features["meter_id"].values,
+        "cluster_label": cluster_labels,
+    })
+    
+    if verbose:
+        print(f"Clustering complete. Cluster distribution:")
+        print(cluster_labels_df["cluster_label"].value_counts().sort_index())
+    
+    return cluster_labels_df, kmeans
 
 
 def _summarize_feature_matrix(features: pd.DataFrame) -> str:
