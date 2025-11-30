@@ -1,146 +1,130 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import type { GeoJSON } from 'geojson';
 
 interface WaterMeter {
   id: string;
-  name: string;
-  coordinates: [number, number]; // [lng, lat] for Mapbox
+  coordinates: [number, number];
   status: 'normal' | 'warning' | 'alert';
-  lastReading: number;
-  predictedFailureRisk: number;
+  risk_percent: number;
+  cluster_id: number;
+  seccio_censal?: string;
+  age?: number;
+  canya?: number;
+  last_month_consumption?: number;
+}
+
+interface CensusSection {
+  seccio_censal: string;
+  meter_count: number;
+  avg_risk: number;
+  min_risk: number;
+  max_risk: number;
 }
 
 interface WaterMeterMapProps {
   onMeterSelect?: (meter: WaterMeter | null) => void;
-  simulateAlert?: boolean;
   onMetersChange?: (meters: WaterMeter[]) => void;
   filterStatus?: {normal: boolean, warning: boolean, alert: boolean};
+  viewMode?: 'meters' | 'sections' | 'both';
 }
 
-// Barcelona land zones - approximating the city's actual shape, excluding water
-const BARCELONA_LAND_ZONES = [
-  // Central Barcelona (Eixample, Ciutat Vella)
-  { minLng: 2.150, maxLng: 2.190, minLat: 41.375, maxLat: 41.405 },
-  // Upper Barcelona (Gràcia, Sant Gervasi)
-  { minLng: 2.135, maxLng: 2.175, minLat: 41.395, maxLat: 41.420 },
-  // Eastern Barcelona (Sant Martí)
-  { minLng: 2.180, maxLng: 2.220, minLat: 41.390, maxLat: 41.420 },
-  // Western Barcelona (Les Corts, Sants)
-  { minLng: 2.110, maxLng: 2.155, minLat: 41.370, maxLat: 41.395 },
-  // Southern Barcelona (Sants-Montjuïc)
-  { minLng: 2.140, maxLng: 2.180, minLat: 41.355, maxLat: 41.380 },
-  // Northern Barcelona (Horta-Guinardó)
-  { minLng: 2.150, maxLng: 2.190, minLat: 41.410, maxLat: 41.440 },
-  // North-West (Sarrià-Sant Gervasi)
-  { minLng: 2.105, maxLng: 2.145, minLat: 41.390, maxLat: 41.425 },
-  // Far East (Sant Andreu, Nou Barris)
-  { minLng: 2.165, maxLng: 2.200, minLat: 41.420, maxLat: 41.455 },
-];
-
-// Generate mock water meters positioned realistically across Barcelona's land areas
-const generateMockMeters = (count: number): WaterMeter[] => {
-  const meters: WaterMeter[] = [];
-  const prefixes = ['AQUA', 'HYDRO', 'FLOW', 'STREAM', 'WAVE', 'CASCADE', 'BROOK'];
-  const suffixes = ['ALPHA', 'BETA', 'GAMMA', 'DELTA', 'ECHO', 'FOXTROT', 'GOLF', 'HOTEL'];
-  
-  for (let i = 0; i < count; i++) {
-    // Randomly select a zone with weighted probability (central zones get more meters)
-    const zoneWeights = [3, 2, 2, 2, 2, 1.5, 1.5, 1]; // Higher weight for central areas
-    const totalWeight = zoneWeights.reduce((a, b) => a + b, 0);
-    let random = Math.random() * totalWeight;
-    let selectedZoneIndex = 0;
-    
-    for (let j = 0; j < zoneWeights.length; j++) {
-      random -= zoneWeights[j];
-      if (random <= 0) {
-        selectedZoneIndex = j;
-        break;
-      }
-    }
-    
-    const zone = BARCELONA_LAND_ZONES[selectedZoneIndex];
-    
-    // Position meters within the selected zone
-    const lng = zone.minLng + Math.random() * (zone.maxLng - zone.minLng);
-    const lat = zone.minLat + Math.random() * (zone.maxLat - zone.minLat);
-    const risk = Math.random() * 100;
-    
-    // Generate a unique name
-    const prefix = prefixes[i % prefixes.length];
-    const suffix = suffixes[Math.floor(i / prefixes.length) % suffixes.length];
-    const number = String(i + 1).padStart(4, '0');
-    
-    meters.push({
-      id: `meter-${i}`,
-      name: `${prefix}-${suffix}-${number}`,
-      coordinates: [lng, lat],
-      status: risk > 80 ? 'alert' : risk > 50 ? 'warning' : 'normal',
-      lastReading: Math.floor(1000 + Math.random() * 9000),
-      predictedFailureRisk: risk,
-    });
-  }
-  
-  return meters;
-};
+type ViewMode = 'meters' | 'sections' | 'both';
 
 export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({ 
   onMeterSelect,
-  simulateAlert = false,
   onMetersChange,
-  filterStatus = {normal: true, warning: true, alert: true}
+  filterStatus = {normal: true, warning: true, alert: true},
+  viewMode: initialViewMode = 'meters'
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const [meters] = useState<WaterMeter[]>(generateMockMeters(5000));
+  const mapInitialized = useRef(false);
+  const [meters, setMeters] = useState<WaterMeter[]>([]);
+  const [sections, setSections] = useState<CensusSection[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
+  const [loading, setLoading] = useState(true);
 
-  // Notify parent component when meters change
+  // Load GeoJSON data for stats only (map will load its own data)
   useEffect(() => {
-    onMetersChange?.(meters);
-  }, [meters, onMetersChange]);
+    const loadData = async () => {
+      try {
+        // Load meters for stats/parent component
+        const metersResponse = await fetch('/data/water_meters.geojson');
+        if (!metersResponse.ok) {
+          throw new Error(`Failed to load meters: ${metersResponse.statusText}`);
+        }
+        const metersData: GeoJSON.FeatureCollection = await metersResponse.json();
+        
+        const loadedMeters: WaterMeter[] = metersData.features
+          .filter(f => f.geometry.type === 'Point')
+          .map(f => {
+            const props = f.properties;
+            const coords = f.geometry.coordinates as [number, number];
+            const risk = props?.risk_percent || 0;
+            
+            return {
+              id: props?.id || '',
+              coordinates: coords,
+              status: risk >= 80 ? 'alert' : risk >= 50 ? 'warning' : 'normal',
+              risk_percent: risk,
+              cluster_id: props?.cluster_id || 0,
+              seccio_censal: props?.seccio_censal,
+              age: props?.age,
+              canya: props?.canya,
+              last_month_consumption: props?.last_month_consumption,
+            };
+          });
+        
+        setMeters(loadedMeters);
+        onMetersChange?.(loadedMeters);
+        console.log(`Loaded ${loadedMeters.length} meters`);
 
-  // Update map layer opacity when filter changes
+        // Load sections for stats
+        const sectionsResponse = await fetch('/data/census_sections.geojson');
+        if (!sectionsResponse.ok) {
+          throw new Error(`Failed to load sections: ${sectionsResponse.statusText}`);
+        }
+        const sectionsData: GeoJSON.FeatureCollection = await sectionsResponse.json();
+        
+        const loadedSections: CensusSection[] = sectionsData.features
+          .filter(f => f.geometry.type === 'Polygon')
+          .map(f => ({
+            seccio_censal: f.properties?.seccio_censal || '',
+            meter_count: f.properties?.meter_count || 0,
+            avg_risk: f.properties?.avg_risk || 0,
+            min_risk: f.properties?.min_risk || 0,
+            max_risk: f.properties?.max_risk || 0,
+          }));
+        
+        setSections(loadedSections);
+        console.log(`Loaded ${loadedSections.length} census sections`);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error loading map data:', error);
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [onMetersChange]);
+
+
+  // Initialize map ONLY ONCE
   useEffect(() => {
-    if (!map.current) return;
-
-    try {
-      // Update opacity for each layer based on filter status
-      if (map.current.getLayer('normal-meters')) {
-        map.current.setPaintProperty('normal-meters', 'circle-opacity', 
-          filterStatus.normal ? 0.8 : 0
-        );
-      }
-      if (map.current.getLayer('warning-meters')) {
-        map.current.setPaintProperty('warning-meters', 'circle-opacity',
-          filterStatus.warning ? 0.85 : 0
-        );
-      }
-      if (map.current.getLayer('alert-meters')) {
-        map.current.setPaintProperty('alert-meters', 'circle-opacity',
-          filterStatus.alert ? 0.9 : 0
-        );
-      }
-    } catch (error) {
-      // Layer might not be loaded yet, ignore error
-      console.debug('Layer not ready for filter update');
-    }
-  }, [filterStatus]);
-
-  useEffect(() => {
-    if (!mapContainer.current) return;
-
-    // Initialize Mapbox
+    if (!mapContainer.current || mapInitialized.current) return;
+    
     mapboxgl.accessToken = 'pk.eyJ1IjoiamFuYWd1aTciLCJhIjoiY21oMzhpOXFsMTdqZTU5c2J0a2R6aXp4aSJ9.ryKFzFTxG2CidKGv6a162Q';
     
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/light-v11',
-      center: [2.1734, 41.3851], // Barcelona coordinates
+      center: [2.1734, 41.3851],
       zoom: 12,
       pitch: 0,
     });
 
-    // Add navigation controls (zoom in/out)
     map.current.addControl(
       new mapboxgl.NavigationControl({
         visualizePitch: false,
@@ -148,134 +132,261 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
       'top-right'
     );
 
-    // Add water meter data as a GeoJSON source
-    map.current.on('load', () => {
-      const geojsonData: GeoJSON.FeatureCollection = {
-        type: 'FeatureCollection' as const,
-        features: meters.map(meter => ({
-          type: 'Feature' as const,
-          geometry: {
-            type: 'Point' as const,
-            coordinates: meter.coordinates
-          },
-          properties: {
-            id: meter.id,
-            status: meter.status,
-            lastReading: meter.lastReading,
-            predictedFailureRisk: meter.predictedFailureRisk
+    map.current.on('load', async () => {
+      mapInitialized.current = true;
+      if (!map.current) return;
+
+      try {
+        console.log('Map loaded, fetching GeoJSON data...');
+        
+        // Load meters GeoJSON
+        const metersResponse = await fetch('/data/water_meters.geojson');
+        if (!metersResponse.ok) {
+          throw new Error(`Failed to fetch meters: ${metersResponse.statusText}`);
+        }
+        const metersGeoJSON: GeoJSON.FeatureCollection = await metersResponse.json();
+        console.log(`Loaded ${metersGeoJSON.features.length} meter features`);
+
+        // Add meters source
+        map.current.addSource('water-meters', {
+          type: 'geojson',
+          data: metersGeoJSON,
+        });
+
+        // Add meter layers by status
+        ['normal', 'warning', 'alert'].forEach(status => {
+          const color = status === 'normal' ? '#00a8ff' : status === 'warning' ? '#ffb800' : '#e74c3c';
+          const radius = status === 'normal' ? 3 : status === 'warning' ? 4 : 5; // Made larger for visibility
+          const opacity = filterStatus[status as keyof typeof filterStatus] && viewMode !== 'sections' ?
+            (status === 'normal' ? 0.8 : status === 'warning' ? 0.85 : 0.9) : 0;
+
+          try {
+            map.current!.addLayer({
+              id: `${status}-meters`,
+              type: 'circle',
+              source: 'water-meters',
+              filter: ['==', ['get', 'status'], status],
+              paint: {
+                'circle-radius': [
+                  'interpolate',
+                  ['linear'],
+                  ['zoom'],
+                  10, radius,
+                  15, radius * 2,
+                ],
+                'circle-color': color,
+                'circle-stroke-width': status === 'alert' ? 1.5 : 1,
+                'circle-stroke-color': '#ffffff',
+                'circle-opacity': opacity,
+              },
+            });
+            console.log(`Added ${status}-meters layer`);
+          } catch (err) {
+            console.error(`Error adding ${status}-meters layer:`, err);
           }
-        }))
-      };
+        });
 
-      // Add the source
-      map.current!.addSource('water-meters', {
-        type: 'geojson',
-        data: geojsonData
-      });
-
-      // Add normal meters layer
-      map.current!.addLayer({
-        id: 'normal-meters',
-        type: 'circle',
-        source: 'water-meters',
-        filter: ['==', ['get', 'status'], 'normal'],
-        paint: {
-          'circle-radius': 2,
-          'circle-color': '#00a8ff',
-          'circle-stroke-width': 1,
-          'circle-stroke-color': '#ffffff',
-          'circle-opacity': filterStatus.normal ? 0.8 : 0
+        // Load sections GeoJSON
+        const sectionsResponse = await fetch('/data/census_sections.geojson');
+        if (!sectionsResponse.ok) {
+          throw new Error(`Failed to fetch sections: ${sectionsResponse.statusText}`);
         }
-      });
+        const sectionsGeoJSON: GeoJSON.FeatureCollection = await sectionsResponse.json();
+        console.log(`Loaded ${sectionsGeoJSON.features.length} section features`);
 
-      // Add warning meters layer
-      map.current!.addLayer({
-        id: 'warning-meters',
-        type: 'circle',
-        source: 'water-meters',
-        filter: ['==', ['get', 'status'], 'warning'],
-        paint: {
-          'circle-radius': 2.5,
-          'circle-color': '#ffb800',
-          'circle-stroke-width': 1,
-          'circle-stroke-color': '#ffffff',
-          'circle-opacity': filterStatus.warning ? 0.85 : 0
+        // Add sections source
+        map.current.addSource('census-sections', {
+          type: 'geojson',
+          data: sectionsGeoJSON,
+        });
+
+        // Add sections layer with risk-based coloring
+        map.current.addLayer({
+          id: 'census-sections',
+          type: 'fill',
+          source: 'census-sections',
+          paint: {
+            'fill-color': [
+              'interpolate',
+              ['linear'],
+              ['get', 'avg_risk'],
+              0, '#10b981',    // green (low risk)
+              25, '#3b82f6',   // blue
+              50, '#f59e0b',   // orange
+              75, '#ef4444',   // red (high risk)
+              100, '#991b1b',  // dark red (very high risk)
+            ],
+            'fill-opacity': 0.6,
+            'fill-outline-color': '#ffffff',
+          },
+        });
+
+        // Add sections border
+        map.current.addLayer({
+          id: 'census-sections-border',
+          type: 'line',
+          source: 'census-sections',
+          paint: {
+            'line-color': '#ffffff',
+            'line-width': 1,
+            'line-opacity': 0.8,
+          },
+        });
+
+        // Set initial visibility
+        if (viewMode === 'sections') {
+          map.current.setLayoutProperty('census-sections', 'visibility', 'visible');
+          map.current.setLayoutProperty('census-sections-border', 'visibility', 'visible');
+        } else if (viewMode === 'meters') {
+          map.current.setLayoutProperty('census-sections', 'visibility', 'none');
+          map.current.setLayoutProperty('census-sections-border', 'visibility', 'none');
         }
-      });
 
-      // Add alert meters layer
-      map.current!.addLayer({
-        id: 'alert-meters',
-        type: 'circle',
-        source: 'water-meters',
-        filter: ['==', ['get', 'status'], 'alert'],
-        paint: {
-          'circle-radius': 3,
-          'circle-color': '#e74c3c',
-          'circle-stroke-width': 1.5,
-          'circle-stroke-color': '#ffffff',
-          'circle-opacity': filterStatus.alert ? 0.9 : 0
-        }
-      });
+        // Popup for meters
+        const meterPopup = new mapboxgl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+        });
 
-      // Add hover popup
-      const popup = new mapboxgl.Popup({
-        closeButton: false,
-        closeOnClick: false
-      });
-
-      // Add hover effect and popup
-      ['normal-meters', 'warning-meters', 'alert-meters'].forEach(layerId => {
-        map.current!.on('mouseenter', layerId, (e) => {
-          map.current!.getCanvas().style.cursor = 'pointer';
-          
-          const feature = e.features?.[0];
-          if (feature) {
-                          const meter = meters.find(m => m.id === feature.properties.id);
-            if (meter) {
-              popup.setLngLat(e.lngLat)
+        ['normal-meters', 'warning-meters', 'alert-meters'].forEach(layerId => {
+          map.current!.on('mouseenter', layerId, (e) => {
+            map.current!.getCanvas().style.cursor = 'pointer';
+            
+            const feature = e.features?.[0];
+            if (feature) {
+              const props = feature.properties;
+              const risk = props?.risk_percent || 0;
+              
+              meterPopup
+                .setLngLat(e.lngLat)
                 .setHTML(`
                   <div class="p-2">
-                    <div class="font-semibold text-sm">${meter.name || `Meter ${meter.id}`}</div>
-                    <div class="text-xs text-gray-600">Risk: ${Math.round(meter.predictedFailureRisk)}%</div>
-                    <div class="text-xs text-gray-600">Reading: ${meter.lastReading.toLocaleString()} L</div>
+                    <div class="font-semibold text-sm">Meter ${props?.id || 'Unknown'}</div>
+                    <div class="text-xs text-gray-600">Risk: ${risk.toFixed(1)}%</div>
+                    <div class="text-xs text-gray-600">Cluster: ${props?.cluster_id || 'N/A'}</div>
+                    ${props?.seccio_censal ? `<div class="text-xs text-gray-600">Section: ${props.seccio_censal}</div>` : ''}
                   </div>
                 `)
                 .addTo(map.current!);
             }
+          });
+
+          map.current!.on('mouseleave', layerId, () => {
+            map.current!.getCanvas().style.cursor = '';
+            meterPopup.remove();
+          });
+
+          map.current!.on('click', layerId, (e) => {
+            const feature = e.features?.[0];
+            if (feature) {
+              const props = feature.properties;
+              const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
+              const risk = props?.risk_percent || 0;
+              
+              const meter: WaterMeter = {
+                id: props?.id || '',
+                coordinates: coords,
+                status: risk >= 80 ? 'alert' : risk >= 50 ? 'warning' : 'normal',
+                risk_percent: risk,
+                cluster_id: props?.cluster_id || 0,
+                seccio_censal: props?.seccio_censal,
+                age: props?.age,
+                canya: props?.canya,
+                last_month_consumption: props?.last_month_consumption,
+              };
+              
+              onMeterSelect?.(meter);
+            }
+          });
+        });
+
+        // Popup for sections
+        const sectionPopup = new mapboxgl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+        });
+
+        map.current.on('mouseenter', 'census-sections', (e) => {
+          map.current!.getCanvas().style.cursor = 'pointer';
+          
+          const feature = e.features?.[0];
+          if (feature) {
+            const props = feature.properties;
+            
+            sectionPopup
+              .setLngLat(e.lngLat)
+              .setHTML(`
+                <div class="p-2">
+                  <div class="font-semibold text-sm">Census Section ${props?.seccio_censal || 'Unknown'}</div>
+                  <div class="text-xs text-gray-600">Meters: ${props?.meter_count || 0}</div>
+                  <div class="text-xs text-gray-600">Avg Risk: ${(props?.avg_risk || 0).toFixed(1)}%</div>
+                  <div class="text-xs text-gray-600">Range: ${(props?.min_risk || 0).toFixed(1)}% - ${(props?.max_risk || 0).toFixed(1)}%</div>
+                </div>
+              `)
+              .addTo(map.current!);
           }
         });
 
-        map.current!.on('mouseleave', layerId, () => {
+        map.current.on('mouseleave', 'census-sections', () => {
           map.current!.getCanvas().style.cursor = '';
-          popup.remove();
+          sectionPopup.remove();
         });
-      });
 
-      // Add click handler
-      map.current!.on('click', ['normal-meters', 'warning-meters', 'alert-meters'], (e) => {
-        const feature = e.features?.[0];
-        if (feature) {
-          const meter = meters.find(m => m.id === feature.properties.id);
-          if (meter) {
-            onMeterSelect?.(meter);
-          }
+      } catch (error) {
+        console.error('Error loading map layers:', error);
+        // Show error to user
+        if (map.current) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          new mapboxgl.Popup()
+            .setLngLat([2.1734, 41.3851])
+            .setHTML(`<div class="p-3 text-red-600"><strong>Error:</strong> ${errorMsg}</div>`)
+            .addTo(map.current);
         }
-      });
+      }
     });
 
-    // Cleanup
     return () => {
-      if (map.current) {
-        // Remove layers and sources
-        if (map.current.getLayer('normal-meters')) map.current.removeLayer('normal-meters');
-        if (map.current.getLayer('warning-meters')) map.current.removeLayer('warning-meters');
-        if (map.current.getLayer('alert-meters')) map.current.removeLayer('alert-meters');
-        if (map.current.getSource('water-meters')) map.current.removeSource('water-meters');
+      if (map.current && mapInitialized.current) {
         map.current.remove();
+        mapInitialized.current = false;
       }
     };
-  }, [meters, onMeterSelect, simulateAlert]);
+  }, []); // Empty deps - only initialize once
+
+  // Update layers when filterStatus or viewMode changes
+  useEffect(() => {
+    if (!map.current || !mapInitialized.current) return;
+
+    try {
+      // Update meter layer opacity
+      ['normal', 'warning', 'alert'].forEach(status => {
+        const layerId = `${status}-meters`;
+        if (map.current?.getLayer(layerId)) {
+          const opacity = filterStatus[status as keyof typeof filterStatus] && viewMode !== 'sections' ?
+            (status === 'normal' ? 0.8 : status === 'warning' ? 0.85 : 0.9) : 0;
+          map.current.setPaintProperty(layerId, 'circle-opacity', opacity);
+        }
+      });
+
+      // Update section layer visibility
+      if (map.current.getLayer('census-sections')) {
+        map.current.setLayoutProperty(
+          'census-sections',
+          'visibility',
+          (viewMode === 'sections' || viewMode === 'both') ? 'visible' : 'none'
+        );
+      }
+      if (map.current.getLayer('census-sections-border')) {
+        map.current.setLayoutProperty(
+          'census-sections-border',
+          'visibility',
+          (viewMode === 'sections' || viewMode === 'both') ? 'visible' : 'none'
+        );
+      }
+    } catch (error) {
+      console.debug('Layer update error:', error);
+    }
+  }, [filterStatus, viewMode]);
 
   return (
     <div className="relative w-full h-full">
@@ -283,7 +394,86 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
         ref={mapContainer} 
         className="absolute inset-0 overflow-hidden"
       />
-      {/* Map overlay gradient for depth */}
+      
+      {/* View mode toggle */}
+      <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-2 flex gap-2">
+        <button
+          onClick={() => setViewMode('meters')}
+          className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+            viewMode === 'meters' 
+              ? 'bg-blue-500 text-white' 
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Meters
+        </button>
+        <button
+          onClick={() => setViewMode('sections')}
+          className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+            viewMode === 'sections' 
+              ? 'bg-blue-500 text-white' 
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Sections
+        </button>
+        <button
+          onClick={() => setViewMode('both')}
+          className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+            viewMode === 'both' 
+              ? 'bg-blue-500 text-white' 
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Both
+        </button>
+      </div>
+
+      {/* Loading indicator */}
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-20">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading map data...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Legend */}
+      {!loading && (
+        <div className="absolute bottom-4 right-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-4">
+          {viewMode !== 'sections' && (
+            <div className="mb-3">
+              <div className="text-sm font-semibold mb-2">Meter Risk Levels</div>
+              <div className="space-y-1 text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[#00a8ff]"></div>
+                  <span>Normal (&lt;50%)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[#ffb800]"></div>
+                  <span>Warning (50-80%)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[#e74c3c]"></div>
+                  <span>Alert (≥80%)</span>
+                </div>
+              </div>
+            </div>
+          )}
+          {viewMode !== 'meters' && (
+            <div>
+              <div className="text-sm font-semibold mb-2">Section Average Risk</div>
+              <div className="flex items-center gap-2 h-4">
+                <div className="text-xs text-green-600">Low</div>
+                <div className="flex-1 h-2 bg-gradient-to-r from-green-500 via-blue-500 via-yellow-500 to-red-700 rounded"></div>
+                <div className="text-xs text-red-700">High</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-transparent to-background/5" />
     </div>
   );

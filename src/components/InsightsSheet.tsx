@@ -6,11 +6,18 @@ import { ScrollArea } from './ui/scroll-area';
 
 interface WaterMeter {
   id: string;
-  name: string;
   coordinates: [number, number];
   status: 'normal' | 'warning' | 'alert';
-  lastReading: number;
-  predictedFailureRisk: number;
+  risk_percent: number;
+  cluster_id?: number;
+  seccio_censal?: string;
+  age?: number;
+  canya?: number;
+  last_month_consumption?: number;
+  // Legacy fields for compatibility
+  name?: string;
+  lastReading?: number;
+  predictedFailureRisk?: number;
 }
 
 interface Alarm {
@@ -27,6 +34,8 @@ interface Alarm {
     daysAffected: number;
     dates: string[];
     location?: string;
+    age?: number;
+    canya?: number;
   };
   explanation: {
     whatIsHappening: string;
@@ -48,36 +57,42 @@ const generateLocation = (meterName: string): string => {
   return `${districts[hash % districts.length]}, Barcelona`;
 };
 
-// Generate mock alarms based on meters with alerts/warnings
+// Generate mock alarms based on top 20 riskiest meters
 const generateAlarms = (meters: WaterMeter[]): Alarm[] => {
   const alarms: Alarm[] = [];
   
-  // Filter meters with alerts or warnings
-  const problematicMeters = meters.filter(m => m.status === 'alert' || m.status === 'warning');
+  // Sort by risk_percent (highest first) and take top 20
+  const topRiskyMeters = [...meters]
+    .sort((a, b) => (b.risk_percent || 0) - (a.risk_percent || 0))
+    .slice(0, 20);
   
-  // Create sample alarms - prioritize alert status meters
-  problematicMeters.slice(0, 10).forEach((meter, index) => {
-    const location = generateLocation(meter.name);
+  // Create alarms for top 20 riskiest meters
+  topRiskyMeters.forEach((meter, index) => {
+    const meterName = meter.name || `Meter ${meter.id}`;
+    const location = generateLocation(meterName);
+    const risk = meter.risk_percent || meter.predictedFailureRisk || 0;
     
     if (index === 0) {
       // First alarm: The user's example - 2 days with 5000l while mean is 100
       alarms.push({
         id: `alarm-${meter.id}`,
         meterId: meter.id,
-        meterName: meter.name,
+        meterName: meterName,
         type: 'high_consumption',
-        severity: 'alert',
-        title: 'Unusually High Consumption Detected',
-        description: 'Two consecutive days with extremely high consumption values',
+        severity: risk >= 80 ? 'alert' : 'warning',
+        title: `High Failure Risk Detected (${risk.toFixed(1)}%)`,
+        description: `Meter has a failure risk score of ${risk.toFixed(1)}%, indicating potential subcounting or degradation`,
         data: {
-          currentValue: 5000,
-          meanValue: 100,
+          currentValue: meter.last_month_consumption ? Math.round(meter.last_month_consumption) : 0,
+          meanValue: meter.canya && meter.age ? Math.round(meter.canya / meter.age) : 0,
           daysAffected: 2,
           dates: ['2024-01-15', '2024-01-16'],
-          location
+          location,
+          age: meter.age,
+          canya: meter.canya
         },
         explanation: {
-          whatIsHappening: `This water meter (${meter.name}) has recorded consumption of 5,000 liters on two consecutive days (January 15-16, 2024), which is 50 times higher than the monthly average of 100 liters. This represents a 4,900% increase from normal consumption patterns. Such a dramatic spike typically indicates either a significant water leak, meter malfunction, or unusual activity at the property.`,
+          whatIsHappening: `This water meter (${meterName}, ID: ${meter.id}) has been identified as high-risk with a failure probability score of ${risk.toFixed(1)}%. The risk score combines intra-cluster anomaly behavior and cluster-level degradation factors. This indicates the meter exhibits atypical consumption patterns within its behavioral cluster and is located in a high-degradation area, suggesting potential subcounting behavior or meter degradation.`,
           whatCouldBeDone: `1. **Immediate Inspection**: Dispatch a technician to the location within 24 hours to verify the meter readings and check for visible leaks.\n\n2. **Leak Detection**: Conduct a thorough inspection of the property's water system, including pipes, fixtures, and connections. Check for signs of water damage or unusual water flow.\n\n3. **Meter Verification**: Test the meter's accuracy by comparing readings with a calibrated device. If the meter is faulty, replace it immediately.\n\n4. **Property Contact**: Notify the property owner or tenant about the anomaly and request information about any recent activities that might explain the spike (e.g., filling a pool, construction work, etc.).\n\n5. **Continuous Monitoring**: Increase monitoring frequency for this meter to track if the pattern continues or resolves.`,
           whatUsuallyHappens: `In similar cases, approximately 60% of high consumption spikes are caused by water leaks (often in underground pipes or within building infrastructure). About 25% are due to meter malfunctions or reading errors. The remaining 15% are typically explained by legitimate but unusual activities such as pool filling, construction work, or industrial use. Most leaks are detected within 48 hours of the initial spike, and prompt action usually prevents significant water waste and property damage. Historical data shows that meters with this pattern that are addressed within 48 hours have a 90% resolution rate.`
         }
@@ -87,20 +102,22 @@ const generateAlarms = (meters: WaterMeter[]): Alarm[] => {
       alarms.push({
         id: `alarm-${meter.id}`,
         meterId: meter.id,
-        meterName: meter.name,
+        meterName: meterName,
         type: 'zero_consumption',
-        severity: meter.status === 'alert' ? 'alert' : 'warning',
+        severity: risk >= 80 ? 'alert' : 'warning',
         title: 'Zero Consumption Pattern',
         description: 'Multiple consecutive days with zero consumption detected',
         data: {
-          currentValue: 0,
-          meanValue: 150,
+          currentValue: meter.last_month_consumption ? Math.round(meter.last_month_consumption) : 0,
+          meanValue: meter.canya && meter.age ? Math.round(meter.canya / meter.age) : 0,
           daysAffected: 5,
           dates: ['2024-01-12', '2024-01-13', '2024-01-14', '2024-01-15', '2024-01-16'],
-          location
+          location,
+          age: meter.age,
+          canya: meter.canya
         },
         explanation: {
-          whatIsHappening: `Meter ${meter.name} has recorded zero consumption for 5 consecutive days, which is unusual given its historical average of 150 liters per day. This pattern suggests either a meter malfunction, a closed main water valve, or the property being unoccupied.`,
+          whatIsHappening: `Meter ${meterName} (ID: ${meter.id}) has been flagged with a failure risk score of ${risk.toFixed(1)}%. The meter shows anomalous behavior patterns compared to other meters in its cluster, combined with location in an area with higher average degradation levels. This suggests potential issues with meter accuracy or subcounting behavior.`,
           whatCouldBeDone: `1. Verify meter functionality and connectivity\n2. Check if the property is occupied\n3. Inspect the main water valve\n4. Review recent maintenance records`,
           whatUsuallyHappens: `Zero consumption patterns are typically caused by meter failures (40%), vacant properties (35%), or closed valves (25%). Most cases resolve within a week after intervention.`
         }
@@ -113,20 +130,22 @@ const generateAlarms = (meters: WaterMeter[]): Alarm[] => {
       alarms.push({
         id: `alarm-${meter.id}`,
         meterId: meter.id,
-        meterName: meter.name,
+        meterName: meterName,
         type,
-        severity: meter.status === 'alert' ? 'alert' : 'warning',
-        title: type === 'anomaly' ? 'Consumption Anomaly Detected' : 'Consumption Spike',
-        description: `Unusual consumption pattern detected for meter ${meter.name}`,
+        severity: risk >= 80 ? 'alert' : 'warning',
+        title: `Failure Risk Alert (${risk.toFixed(1)}%)`,
+        description: `High failure risk detected for meter ${meterName}`,
         data: {
-          currentValue: meter.lastReading,
-          meanValue: Math.round(meter.lastReading * 0.3),
+          currentValue: meter.last_month_consumption ? Math.round(meter.last_month_consumption) : 0,
+          meanValue: meter.canya && meter.age ? Math.round(meter.canya / meter.age) : 0,
           daysAffected: 1 + (index % 3),
           dates: ['2024-01-16'],
-          location
+          location,
+          age: meter.age,
+          canya: meter.canya
         },
         explanation: {
-          whatIsHappening: `Meter ${meter.name} is showing unusual consumption patterns that deviate significantly from its historical average. The current readings indicate potential issues that require investigation.`,
+          whatIsHappening: `Meter ${meterName} (ID: ${meter.id}) has a failure risk score of ${risk.toFixed(1)}%, indicating it exhibits atypical behavioral patterns within its cluster. The risk assessment combines anomaly detection (behavioral deviation) and cluster degradation factors (age and accumulated consumption). This suggests potential subcounting or meter degradation issues.`,
           whatCouldBeDone: `1. Review recent consumption data\n2. Schedule maintenance inspection\n3. Monitor for pattern continuation\n4. Check for external factors affecting consumption`,
           whatUsuallyHappens: `Similar anomalies are often resolved through regular maintenance or are attributed to temporary usage patterns. Early detection helps prevent more serious issues.`
         }
@@ -249,7 +268,7 @@ export const InsightsSheet: React.FC<InsightsSheetProps> = ({
               Insights & Alarms
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Active alarms and detailed explanations
+              Top 20 highest-risk meters with detailed explanations
             </p>
           </div>
           <Button
@@ -268,7 +287,7 @@ export const InsightsSheet: React.FC<InsightsSheetProps> = ({
           <div className="w-80 border-r border-border bg-muted/20 flex flex-col">
             <div className="px-4 py-3 border-b border-border">
               <h3 className="text-sm font-semibold text-foreground">
-                Active Alarms ({alarms.length})
+                Top {Math.min(alarms.length, 20)} Highest-Risk Meters
               </h3>
             </div>
             <ScrollArea className="flex-1">
@@ -354,11 +373,11 @@ export const InsightsSheet: React.FC<InsightsSheetProps> = ({
                       </div>
                       
                       {/* Data Summary */}
-                      <div className="grid grid-cols-3 gap-4 mt-4">
+                      <div className="grid grid-cols-4 gap-4 mt-4">
                         <div className="bg-background/50 rounded-lg p-3 border border-border">
                           <div className="flex items-center gap-2 mb-1">
                             <Droplets className="w-4 h-4 text-primary" />
-                            <span className="text-xs text-muted-foreground">Current</span>
+                            <span className="text-xs text-muted-foreground">Last Month</span>
                           </div>
                           <p className="text-lg font-bold text-foreground">
                             {selectedAlarm.data.currentValue.toLocaleString()} L
@@ -367,7 +386,7 @@ export const InsightsSheet: React.FC<InsightsSheetProps> = ({
                         <div className="bg-background/50 rounded-lg p-3 border border-border">
                           <div className="flex items-center gap-2 mb-1">
                             <TrendingUp className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">Monthly Mean</span>
+                            <span className="text-xs text-muted-foreground">Avg Yearly</span>
                           </div>
                           <p className="text-lg font-bold text-foreground">
                             {selectedAlarm.data.meanValue.toLocaleString()} L
@@ -376,10 +395,19 @@ export const InsightsSheet: React.FC<InsightsSheetProps> = ({
                         <div className="bg-background/50 rounded-lg p-3 border border-border">
                           <div className="flex items-center gap-2 mb-1">
                             <Calendar className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">Days Affected</span>
+                            <span className="text-xs text-muted-foreground">Age</span>
                           </div>
                           <p className="text-lg font-bold text-foreground">
-                            {selectedAlarm.data.daysAffected}
+                            {selectedAlarm.data.age ? selectedAlarm.data.age.toFixed(1) : 'N/A'} yrs
+                          </p>
+                        </div>
+                        <div className="bg-background/50 rounded-lg p-3 border border-border">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Droplets className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">Canya</span>
+                          </div>
+                          <p className="text-lg font-bold text-foreground">
+                            {selectedAlarm.data.canya ? Math.round(selectedAlarm.data.canya).toLocaleString() : 'N/A'}
                           </p>
                         </div>
                       </div>

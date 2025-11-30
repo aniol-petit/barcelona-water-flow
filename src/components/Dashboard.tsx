@@ -8,11 +8,18 @@ import { Input } from './ui/input';
 
 interface WaterMeter {
   id: string;
-  name: string;
   coordinates: [number, number];
   status: 'normal' | 'warning' | 'alert';
-  lastReading: number;
-  predictedFailureRisk: number;
+  risk_percent: number;
+  cluster_id?: number;
+  seccio_censal?: string;
+  age?: number;
+  canya?: number;
+  last_month_consumption?: number;
+  // Legacy fields for compatibility
+  name?: string;
+  lastReading?: number;
+  predictedFailureRisk?: number;
   location?: string;
   lastMaintenance?: string;
   installationDate?: string;
@@ -40,7 +47,9 @@ const generateMockMeterData = (meter: WaterMeter): WaterMeter => {
   ];
 
   // Use meter ID to ensure consistent data for the same meter
-  const locationIndex = parseInt(meter.id.split('-')[1]) % locations.length;
+  // Create a hash from the meter ID for consistent location assignment
+  const idHash = meter.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const locationIndex = idHash % locations.length;
 
   return {
     ...meter,
@@ -56,8 +65,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, meters })
 
   if (!isOpen) return null;
 
-  // Generate mock data for all meters
-  const metersWithData = meters.length > 0 ? meters.map(generateMockMeterData) : [];
+  // Generate mock data for all meters, ensuring name field exists
+  const metersWithData = (meters && meters.length > 0) ? meters.map(meter => {
+    const meterWithName = {
+      ...meter,
+      name: meter.name || `Meter ${meter.id}`
+    };
+    return generateMockMeterData(meterWithName);
+  }) : [];
 
   // Filter meters by status and search query
   const filterMeters = (meters: WaterMeter[]) => {
@@ -118,23 +133,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, meters })
         <div className="grid grid-cols-2 gap-3 text-xs">
           <div className="flex items-center gap-1">
             <Droplets className="w-3 h-3 text-primary" />
-            <span className="text-muted-foreground">Reading:</span>
-            <span className="font-medium">{meter.lastReading.toLocaleString()} L</span>
+            <span className="text-muted-foreground">Last Month:</span>
+            <span className="font-medium">
+              {meter.last_month_consumption ? Math.round(meter.last_month_consumption).toLocaleString() : 'N/A'} L
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <Gauge className="w-3 h-3 text-accent" />
             <span className="text-muted-foreground">Risk:</span>
-            <span className="font-medium">{Math.round(meter.predictedFailureRisk)}%</span>
+            <span className="font-medium">{Math.round(meter.risk_percent || meter.predictedFailureRisk || 0)}%</span>
           </div>
           <div className="flex items-center gap-1">
             <Clock className="w-3 h-3 text-muted-foreground" />
-            <span className="text-muted-foreground">Last Maint:</span>
-            <span className="font-medium">{meter.lastMaintenance}</span>
+            <span className="text-muted-foreground">Age:</span>
+            <span className="font-medium">
+              {meter.age ? meter.age.toFixed(1) : 'N/A'} yrs
+            </span>
           </div>
           <div className="flex items-center gap-1">
-            <Clock className="w-3 h-3 text-muted-foreground" />
-            <span className="text-muted-foreground">Installed:</span>
-            <span className="font-medium">{meter.installationDate}</span>
+            <Droplets className="w-3 h-3 text-muted-foreground" />
+            <span className="text-muted-foreground">Canya:</span>
+            <span className="font-medium">
+              {meter.canya ? Math.round(meter.canya).toLocaleString() : 'N/A'}
+            </span>
           </div>
         </div>
       </CardContent>

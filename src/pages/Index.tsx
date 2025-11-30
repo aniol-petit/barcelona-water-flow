@@ -7,11 +7,18 @@ import { Droplets, Activity, TrendingUp, Shield } from 'lucide-react';
 
 interface WaterMeter {
   id: string;
-  name: string;
   coordinates: [number, number];
   status: 'normal' | 'warning' | 'alert';
-  lastReading: number;
-  predictedFailureRisk: number;
+  risk_percent: number;
+  cluster_id?: number;
+  seccio_censal?: string;
+  age?: number;
+  canya?: number;
+  last_month_consumption?: number;
+  // Legacy fields for compatibility
+  name?: string;
+  lastReading?: number;
+  predictedFailureRisk?: number;
 }
 
 const Index = () => {
@@ -52,7 +59,7 @@ const Index = () => {
     warning: allMeters.filter(m => m.status === 'warning').length,
     alert: allMeters.filter(m => m.status === 'alert').length,
     avgRisk: allMeters.length > 0 
-      ? (allMeters.reduce((sum, m) => sum + m.predictedFailureRisk, 0) / allMeters.length).toFixed(1)
+      ? (allMeters.reduce((sum, m) => sum + (m.risk_percent || m.predictedFailureRisk || 0), 0) / allMeters.length).toFixed(1)
       : '0'
   };
 
@@ -168,7 +175,6 @@ const Index = () => {
       <div className="h-screen w-full p-6 pt-32">
         <div className="h-full w-full rounded-3xl overflow-hidden shadow-2xl border border-border/50 bg-card/50 backdrop-blur-sm">
           <WaterMeterMap
-            simulateAlert={simulateAlert}
             onMeterSelect={handleMeterSelect}
             onMetersChange={handleMetersChange}
             filterStatus={filterStatus}
