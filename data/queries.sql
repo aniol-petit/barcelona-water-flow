@@ -253,3 +253,5 @@ SELECT DISTINCT "DIAM_COMP", count(*) FROM counter_metadata group by "DIAM_COMP"
 SELECT DISTINCT "US_AIGUA_GEST", COUNT(*) FROM counter_metadata group by "US_AIGUA_GEST";
 
 SELECT DISTINCT "MARCA_COMP", "CODI_MODEL", COUNT(*) FROM counter_metadata WHERE "US_AIGUA_GEST" = 'D' group by "MARCA_COMP", "CODI_MODEL" ;
+
+SELECT * FROM counter_metadata WHERE "US_AIGUA_GEST" = 'D';
