@@ -39,6 +39,7 @@ DEFAULT_LATENT_PATH = Path(__file__).resolve().parents[1] / "stage2_outputs" / "
 DEFAULT_CLUSTER_PATH = Path(__file__).resolve().parents[1] / "stage3_outputs" / "cluster_labels.csv"
 DEFAULT_PHYSICAL_PATH = Path(__file__).resolve().parents[1] / "stage1_outputs" / "stage1_physical_features_with_clusters.csv"
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "stage4_outputs"
+DEFAULT_DB_PATH = Path(__file__).resolve().parents[1] / "analytics.duckdb"
 
 
 def main():
@@ -107,6 +108,28 @@ def main():
         default="euclidean",
         help="Distance metric for anomaly calculation (default: euclidean)",
     )
+    parser.add_argument(
+        "--disable-subcounting",
+        action="store_true",
+        help="Disable subcounting integration (by default it is enabled).",
+    )
+    parser.add_argument(
+        "--subcount-gamma",
+        type=float,
+        default=0.8,
+        help="Maximum additional independent failure probability contributed by subcounting (0-1, default: 0.8).",
+    )
+    parser.add_argument(
+        "--subcount-use-cluster-peers",
+        action="store_true",
+        help="Use cluster-wise peers for subcounting normalisation instead of global peers.",
+    )
+    parser.add_argument(
+        "--subcount-db-path",
+        type=str,
+        default=str(DEFAULT_DB_PATH),
+        help="Path to DuckDB analytics database for subcounting (default: data/analytics.duckdb).",
+    )
     
     # Visualization parameters
     parser.add_argument(
@@ -143,6 +166,10 @@ def main():
     print(f"  alpha (age weight): {args.alpha}")
     print(f"  beta (canya weight): {args.beta}")
     print(f"  Distance metric: {args.distance_metric}")
+    print(f"  Subcounting enabled: {not args.disable_subcounting}")
+    print(f"  Subcount gamma: {args.subcount_gamma}")
+    print(f"  Subcount use cluster peers: {args.subcount_use_cluster_peers}")
+    print(f"  Subcount DB path: {args.subcount_db_path}")
     print("=" * 80)
     
     # Compute risk scores
@@ -156,6 +183,10 @@ def main():
         alpha=args.alpha,
         beta=args.beta,
         distance_metric=args.distance_metric,
+        enable_subcounting=not args.disable_subcounting,
+        subcount_gamma=args.subcount_gamma,
+        use_subcount_cluster_peers=args.subcount_use_cluster_peers,
+        subcount_db_path=args.subcount_db_path,
     )
     
     print(f"\n✓ Risk scores computed for {len(df_results):,} meters")
