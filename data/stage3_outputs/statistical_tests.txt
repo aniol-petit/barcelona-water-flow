@@ -3,27 +3,27 @@ STATISTICAL TESTS RESULTS
 
 AGE_ANOVA
 --------------------------------------------------------------------------------
-  f_statistic: 1.362364135439805
-  p_value: 0.2442886958125676
-  significant: False
+  f_statistic: 3.280297907280851
+  p_value: 0.0017444829781086556
+  significant: True
 
 CANYA_ANOVA
 --------------------------------------------------------------------------------
-  f_statistic: 7044.841354973725
+  f_statistic: 5178.935601727579
   p_value: 0.0
   significant: True
 
 DIAMETER_CHI2
 --------------------------------------------------------------------------------
-  chi2_statistic: 596.3164833385897
-  p_value: 6.484752029785897e-120
-  degrees_of_freedom: 12
+  chi2_statistic: 1161.1028528516613
+  p_value: 1.1995598476553429e-232
+  degrees_of_freedom: 21
   significant: True
 
 BRAND_MODEL_CHI2
 --------------------------------------------------------------------------------
-  chi2_statistic: 697.3058719674231
-  p_value: 3.322256209716386e-107
-  degrees_of_freedom: 64
+  chi2_statistic: 1420.1154023211006
+  p_value: 2.3893884610096735e-225
+  degrees_of_freedom: 112
   significant: True
 
