@@ -84,7 +84,7 @@ const Index = () => {
               </div>
                              <div>
                  <p className="text-sm text-muted-foreground font-medium">
-                   Intel·ligència Predictiva de Fallades de Comptadors
+                   FlowGuard
                  </p>
                </div>
             </div>
