@@ -9,6 +9,9 @@ interface WaterMeter {
   status: 'normal' | 'warning' | 'alert';
   lastReading: number;
   predictedFailureRisk: number;
+  risk_percent?: number;
+  risk_percent_base?: number;
+  subcount_percent?: number;
   name?: string;
   location?: string;
 }
@@ -40,7 +43,7 @@ export const ExplanationSheet: React.FC<ExplanationSheetProps> = ({
       };
     }
 
-    const risk = meter.predictedFailureRisk;
+    const risk = meter.risk_percent ?? meter.predictedFailureRisk;
     const issues = [];
     const actions = [];
 
@@ -152,6 +155,31 @@ export const ExplanationSheet: React.FC<ExplanationSheetProps> = ({
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground mb-3">{explanation.description}</p>
+              
+              {/* Risk Scores Breakdown */}
+              <div className="grid grid-cols-3 gap-2 mb-3 p-2 bg-background/50 rounded-lg border border-border/50">
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground mb-1">Base Risk</div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {Math.round(selectedMeter.risk_percent_base ?? selectedMeter.predictedFailureRisk ?? 0)}%
+                  </div>
+                </div>
+                {selectedMeter.subcount_percent !== undefined && (
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground mb-1">Subcounting</div>
+                    <div className="text-sm font-semibold text-foreground">
+                      {Math.round(selectedMeter.subcount_percent)}%
+                    </div>
+                  </div>
+                )}
+                <div className="text-center border-l border-border/50 pl-2">
+                  <div className="text-xs text-muted-foreground mb-1">Final Risk</div>
+                  <div className="text-sm font-bold text-foreground">
+                    {Math.round(selectedMeter.risk_percent ?? selectedMeter.predictedFailureRisk ?? 0)}%
+                  </div>
+                </div>
+              </div>
+              
               {selectedMeter.location && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <MapPin className="w-4 h-4" />

@@ -7,7 +7,9 @@ interface WaterMeter {
   id: string;
   coordinates: [number, number];
   status: 'normal' | 'warning' | 'alert';
-  risk_percent: number;
+  risk_percent: number; // Final combined risk (0-100)
+  risk_percent_base?: number; // Base risk from anomaly + degradation (0-100)
+  subcount_percent?: number; // Subcounting probability (0-100)
   cluster_id: number;
   seccio_censal?: string;
   age?: number;
@@ -69,6 +71,8 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
               coordinates: coords,
               status: risk >= 80 ? 'alert' : risk >= 50 ? 'warning' : 'normal',
               risk_percent: risk,
+              risk_percent_base: props?.risk_percent_base,
+              subcount_percent: props?.subcount_percent,
               cluster_id: props?.cluster_id || 0,
               seccio_censal: props?.seccio_censal,
               age: props?.age,
@@ -147,6 +151,19 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
         const metersGeoJSON: GeoJSON.FeatureCollection = await metersResponse.json();
         console.log(`Loaded ${metersGeoJSON.features.length} meter features`);
 
+        // Remove existing meter layers first (must remove layers before source)
+        ['normal', 'warning', 'alert'].forEach(status => {
+          const layerId = `${status}-meters`;
+          if (map.current!.getLayer(layerId)) {
+            map.current!.removeLayer(layerId);
+          }
+        });
+        
+        // Remove existing meter source if it exists
+        if (map.current.getSource('water-meters')) {
+          map.current.removeSource('water-meters');
+        }
+        
         // Add meters source
         map.current.addSource('water-meters', {
           type: 'geojson',
@@ -155,14 +172,16 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
 
         // Add meter layers by status
         ['normal', 'warning', 'alert'].forEach(status => {
+          const layerId = `${status}-meters`;
+          
           const color = status === 'normal' ? '#00a8ff' : status === 'warning' ? '#ffb800' : '#e74c3c';
-          const radius = status === 'normal' ? 3 : status === 'warning' ? 4 : 5; // Made larger for visibility
-          const opacity = filterStatus[status as keyof typeof filterStatus] && viewMode !== 'sections' ?
+          const radius = status === 'normal' ? 2 : status === 'warning' ? 2.5 : 3; // Smaller dots
+          const opacity = filterStatus[status as keyof typeof filterStatus] ?
             (status === 'normal' ? 0.8 : status === 'warning' ? 0.85 : 0.9) : 0;
 
           try {
             map.current!.addLayer({
-              id: `${status}-meters`,
+              id: layerId,
               type: 'circle',
               source: 'water-meters',
               filter: ['==', ['get', 'status'], status],
@@ -194,53 +213,53 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
         const sectionsGeoJSON: GeoJSON.FeatureCollection = await sectionsResponse.json();
         console.log(`Loaded ${sectionsGeoJSON.features.length} section features`);
 
+        // Remove existing section layers first (must remove layers before source)
+        if (map.current.getLayer('census-sections-border')) {
+          map.current.removeLayer('census-sections-border');
+        }
+        if (map.current.getLayer('census-sections')) {
+          map.current.removeLayer('census-sections');
+        }
+        
+        // Remove existing section source if it exists
+        if (map.current.getSource('census-sections')) {
+          map.current.removeSource('census-sections');
+        }
+        
         // Add sections source
         map.current.addSource('census-sections', {
           type: 'geojson',
           data: sectionsGeoJSON,
         });
 
-        // Add sections layer with risk-based coloring
+        // Add sections layer (hidden - we only want borders)
         map.current.addLayer({
           id: 'census-sections',
           type: 'fill',
           source: 'census-sections',
           paint: {
-            'fill-color': [
-              'interpolate',
-              ['linear'],
-              ['get', 'avg_risk'],
-              0, '#10b981',    // green (low risk)
-              25, '#3b82f6',   // blue
-              50, '#f59e0b',   // orange
-              75, '#ef4444',   // red (high risk)
-              100, '#991b1b',  // dark red (very high risk)
-            ],
-            'fill-opacity': 0.6,
-            'fill-outline-color': '#ffffff',
+            'fill-opacity': 0,  // No fill color, only borders will be visible
           },
         });
 
-        // Add sections border
+        // Add sections border (always visible to show section frontiers)
         map.current.addLayer({
           id: 'census-sections-border',
           type: 'line',
           source: 'census-sections',
           paint: {
-            'line-color': '#ffffff',
-            'line-width': 1,
-            'line-opacity': 0.8,
+            'line-color': '#333333',
+            'line-width': 0.5,
+            'line-opacity': 0.6,
           },
         });
 
         // Set initial visibility
-        if (viewMode === 'sections') {
-          map.current.setLayoutProperty('census-sections', 'visibility', 'visible');
-          map.current.setLayoutProperty('census-sections-border', 'visibility', 'visible');
-        } else if (viewMode === 'meters') {
-          map.current.setLayoutProperty('census-sections', 'visibility', 'none');
-          map.current.setLayoutProperty('census-sections-border', 'visibility', 'none');
-        }
+        // Section borders are always visible
+        map.current.setLayoutProperty('census-sections-border', 'visibility', 'visible');
+        
+        // Section fill is hidden (only borders visible)
+        map.current.setLayoutProperty('census-sections', 'visibility', 'visible');
 
         // Popup for meters
         const meterPopup = new mapboxgl.Popup({
@@ -257,14 +276,29 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
               const props = feature.properties;
               const risk = props?.risk_percent || 0;
               
+              const subcountRisk = props?.subcount_percent;
+              const finalRisk = risk;
+              
               meterPopup
                 .setLngLat(e.lngLat)
                 .setHTML(`
-                  <div class="p-2">
-                    <div class="font-semibold text-sm">Meter ${props?.id || 'Unknown'}</div>
-                    <div class="text-xs text-gray-600">Risk: ${risk.toFixed(1)}%</div>
-                    <div class="text-xs text-gray-600">Cluster: ${props?.cluster_id || 'N/A'}</div>
-                    ${props?.seccio_censal ? `<div class="text-xs text-gray-600">Section: ${props.seccio_censal}</div>` : ''}
+                  <div class="p-2 min-w-[200px]">
+                    <div class="font-semibold text-sm mb-2">Comptador ${props?.id || 'Desconegut'}</div>
+                    <div class="space-y-1 text-xs border-t border-gray-200 pt-1">
+                      <div class="flex justify-between pt-1">
+                        <span class="text-gray-700 font-semibold">Risc Final:</span>
+                        <span class="font-bold">${finalRisk.toFixed(1)}%</span>
+                      </div>
+                      ${subcountRisk !== undefined && subcountRisk !== null ? `
+                      <div class="flex justify-between">
+                        <span class="text-gray-600">Puntuació de Subcomptatge:</span>
+                        <span class="font-medium">${Number(subcountRisk).toFixed(1)}%</span>
+                      </div>
+                      ` : ''}
+                    </div>
+                    <div class="text-xs text-gray-500 mt-2 pt-1 border-t border-gray-100">
+                      ${props?.nom_barri ? `Secció: ${props.nom_barri}` : (props?.seccio_censal ? `Secció: ${props.seccio_censal}` : '')}
+                    </div>
                   </div>
                 `)
                 .addTo(map.current!);
@@ -288,6 +322,8 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
                 coordinates: coords,
                 status: risk >= 80 ? 'alert' : risk >= 50 ? 'warning' : 'normal',
                 risk_percent: risk,
+                risk_percent_base: props?.risk_percent_base,
+                subcount_percent: props?.subcount_percent,
                 cluster_id: props?.cluster_id || 0,
                 seccio_censal: props?.seccio_censal,
                 age: props?.age,
@@ -300,37 +336,7 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
           });
         });
 
-        // Popup for sections
-        const sectionPopup = new mapboxgl.Popup({
-          closeButton: false,
-          closeOnClick: false,
-        });
-
-        map.current.on('mouseenter', 'census-sections', (e) => {
-          map.current!.getCanvas().style.cursor = 'pointer';
-          
-          const feature = e.features?.[0];
-          if (feature) {
-            const props = feature.properties;
-            
-            sectionPopup
-              .setLngLat(e.lngLat)
-              .setHTML(`
-                <div class="p-2">
-                  <div class="font-semibold text-sm">Census Section ${props?.seccio_censal || 'Unknown'}</div>
-                  <div class="text-xs text-gray-600">Meters: ${props?.meter_count || 0}</div>
-                  <div class="text-xs text-gray-600">Avg Risk: ${(props?.avg_risk || 0).toFixed(1)}%</div>
-                  <div class="text-xs text-gray-600">Range: ${(props?.min_risk || 0).toFixed(1)}% - ${(props?.max_risk || 0).toFixed(1)}%</div>
-                </div>
-              `)
-              .addTo(map.current!);
-          }
-        });
-
-        map.current.on('mouseleave', 'census-sections', () => {
-          map.current!.getCanvas().style.cursor = '';
-          sectionPopup.remove();
-        });
+        // No popup for census sections (user requested to remove it)
 
       } catch (error) {
         console.error('Error loading map layers:', error);
@@ -362,26 +368,19 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
       ['normal', 'warning', 'alert'].forEach(status => {
         const layerId = `${status}-meters`;
         if (map.current?.getLayer(layerId)) {
-          const opacity = filterStatus[status as keyof typeof filterStatus] && viewMode !== 'sections' ?
+          const opacity = filterStatus[status as keyof typeof filterStatus] ?
             (status === 'normal' ? 0.8 : status === 'warning' ? 0.85 : 0.9) : 0;
           map.current.setPaintProperty(layerId, 'circle-opacity', opacity);
         }
       });
 
-      // Update section layer visibility
+      // Section fill remains hidden (only borders visible)
       if (map.current.getLayer('census-sections')) {
-        map.current.setLayoutProperty(
-          'census-sections',
-          'visibility',
-          (viewMode === 'sections' || viewMode === 'both') ? 'visible' : 'none'
-        );
+        map.current.setPaintProperty('census-sections', 'fill-opacity', 0);
       }
+      // Section borders are always visible
       if (map.current.getLayer('census-sections-border')) {
-        map.current.setLayoutProperty(
-          'census-sections-border',
-          'visibility',
-          (viewMode === 'sections' || viewMode === 'both') ? 'visible' : 'none'
-        );
+        map.current.setLayoutProperty('census-sections-border', 'visibility', 'visible');
       }
     } catch (error) {
       console.debug('Layer update error:', error);
@@ -395,46 +394,13 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
         className="absolute inset-0 overflow-hidden"
       />
       
-      {/* View mode toggle */}
-      <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-2 flex gap-2">
-        <button
-          onClick={() => setViewMode('meters')}
-          className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
-            viewMode === 'meters' 
-              ? 'bg-blue-500 text-white' 
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Meters
-        </button>
-        <button
-          onClick={() => setViewMode('sections')}
-          className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
-            viewMode === 'sections' 
-              ? 'bg-blue-500 text-white' 
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Sections
-        </button>
-        <button
-          onClick={() => setViewMode('both')}
-          className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
-            viewMode === 'both' 
-              ? 'bg-blue-500 text-white' 
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Both
-        </button>
-      </div>
 
       {/* Loading indicator */}
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-20">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading map data...</p>
+            <p className="text-gray-600">Carregant dades del mapa...</p>
           </div>
         </div>
       )}
@@ -442,35 +408,23 @@ export const WaterMeterMap: React.FC<WaterMeterMapProps> = ({
       {/* Legend */}
       {!loading && (
         <div className="absolute bottom-4 right-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-4">
-          {viewMode !== 'sections' && (
-            <div className="mb-3">
-              <div className="text-sm font-semibold mb-2">Meter Risk Levels</div>
-              <div className="space-y-1 text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[#00a8ff]"></div>
-                  <span>Normal (&lt;50%)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[#ffb800]"></div>
-                  <span>Warning (50-80%)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[#e74c3c]"></div>
-                  <span>Alert (≥80%)</span>
-                </div>
+          <div className="mb-3">
+            <div className="text-sm font-semibold mb-2">Nivells de Risc dels Comptadors</div>
+            <div className="space-y-1 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#00a8ff]"></div>
+                <span>Normal (&lt;50%)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#ffb800]"></div>
+                <span>Avis (50-80%)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#e74c3c]"></div>
+                <span>Alerta (≥80%)</span>
               </div>
             </div>
-          )}
-          {viewMode !== 'meters' && (
-            <div>
-              <div className="text-sm font-semibold mb-2">Section Average Risk</div>
-              <div className="flex items-center gap-2 h-4">
-                <div className="text-xs text-green-600">Low</div>
-                <div className="flex-1 h-2 bg-gradient-to-r from-green-500 via-blue-500 via-yellow-500 to-red-700 rounded"></div>
-                <div className="text-xs text-red-700">High</div>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       )}
 

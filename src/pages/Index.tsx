@@ -9,7 +9,9 @@ interface WaterMeter {
   id: string;
   coordinates: [number, number];
   status: 'normal' | 'warning' | 'alert';
-  risk_percent: number;
+  risk_percent: number; // Final combined risk (0-100)
+  risk_percent_base?: number; // Base risk from anomaly + degradation (0-100)
+  subcount_percent?: number; // Subcounting probability (0-100)
   cluster_id?: number;
   seccio_censal?: string;
   age?: number;
@@ -82,7 +84,7 @@ const Index = () => {
               </div>
                              <div>
                  <p className="text-sm text-muted-foreground font-medium">
-                   Predictive Water Intelligence
+                   Intel·ligència Predictiva de Fallades de Comptadors
                  </p>
                </div>
             </div>
@@ -131,7 +133,7 @@ const Index = () => {
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-accent" />
                     <div>
-                      <p className="text-xs text-muted-foreground font-medium">Warning</p>
+                      <p className="text-xs text-muted-foreground font-medium">Avis</p>
                       <p className="text-lg font-bold text-accent">{stats.warning}</p>
                     </div>
                   </div>
@@ -149,7 +151,7 @@ const Index = () => {
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-destructive" />
                     <div>
-                      <p className="text-xs text-muted-foreground font-medium">Alert</p>
+                      <p className="text-xs text-muted-foreground font-medium">Alerta</p>
                       <p className="text-lg font-bold text-destructive">{stats.alert}</p>
                     </div>
                   </div>
@@ -160,7 +162,7 @@ const Index = () => {
                   <div className="flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-foreground" />
                     <div>
-                      <p className="text-xs text-muted-foreground font-medium">Avg Risk</p>
+                      <p className="text-xs text-muted-foreground font-medium">Risc Mitjà</p>
                       <p className="text-lg font-bold text-foreground">{stats.avgRisk}%</p>
                     </div>
                   </div>

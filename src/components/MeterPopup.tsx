@@ -7,6 +7,9 @@ interface MeterPopupProps {
     status: 'normal' | 'warning' | 'alert';
     lastReading: number;
     predictedFailureRisk: number;
+    risk_percent?: number;
+    risk_percent_base?: number;
+    subcount_percent?: number;
   };
   position: { x: number; y: number };
 }
@@ -50,10 +53,22 @@ export const MeterPopup: React.FC<MeterPopupProps> = ({ meter, position }) => {
             <span className="text-muted-foreground text-xs">last reading</span>
           </div>
           
-          <div className="flex items-center gap-2 text-sm">
-            <TrendingUp className="w-4 h-4 text-accent" />
-            <span className="text-foreground font-medium">{meter.predictedFailureRisk.toFixed(1)}%</span>
-            <span className="text-muted-foreground text-xs">failure risk</span>
+          {/* Risk Scores */}
+          <div className="space-y-1.5 pt-1 border-t border-border/50">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground font-semibold">Final Risk:</span>
+              <span className="text-foreground font-bold">
+                {Math.round(meter.risk_percent ?? meter.predictedFailureRisk ?? 0)}%
+              </span>
+            </div>
+            {meter.subcount_percent !== undefined && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Subcounting Score:</span>
+                <span className="text-foreground font-medium">
+                  {Math.round(meter.subcount_percent)}%
+                </span>
+              </div>
+            )}
           </div>
           
           {meter.status !== 'normal' && (

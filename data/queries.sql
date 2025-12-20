@@ -255,3 +255,10 @@ SELECT DISTINCT "US_AIGUA_GEST", COUNT(*) FROM counter_metadata group by "US_AIG
 SELECT DISTINCT "MARCA_COMP", "CODI_MODEL", COUNT(*) FROM counter_metadata WHERE "US_AIGUA_GEST" = 'D' group by "MARCA_COMP", "CODI_MODEL" ;
 
 SELECT * FROM counter_metadata WHERE "US_AIGUA_GEST" = 'D';
+
+SELECT seccio_censal
+FROM counter_metadata
+WHERE "US_AIGUA_GEST" = 'D'
+  AND "NUM_MUN_SGAB" = 0
+  AND CAST("seccio_censal" AS VARCHAR) LIKE '%801903523%'
+GROUP BY seccio_censal;

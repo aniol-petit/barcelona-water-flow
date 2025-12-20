@@ -304,25 +304,31 @@ def generate_summary_statistics(
     pd.DataFrame
         Summary statistics by cluster.
     """
-    summary = df_results.groupby("cluster_id").agg({
+    # Build aggregation dictionary based on available columns
+    agg_dict = {
         "meter_id": "count",
         "risk_percent": ["mean", "std", "min", "max", "median"],
         "anomaly_score": ["mean", "std"],
         "cluster_degradation": "first",  # Same for all meters in cluster
-    }).round(4)
+    }
+    
+    # Add base risk and subcounting if available
+    if "risk_percent_base" in df_results.columns:
+        agg_dict["risk_percent_base"] = ["mean", "std", "min", "max", "median"]
+    if "subcount_percent" in df_results.columns:
+        agg_dict["subcount_percent"] = ["mean", "std", "min", "max", "median"]
+    
+    summary = df_results.groupby("cluster_id").agg(agg_dict).round(4)
     
     # Flatten column names
-    summary.columns = [
-        "n_meters",
-        "risk_mean",
-        "risk_std",
-        "risk_min",
-        "risk_max",
-        "risk_median",
-        "anomaly_mean",
-        "anomaly_std",
-        "cluster_degradation",
-    ]
+    col_names = ["n_meters", "risk_mean", "risk_std", "risk_min", "risk_max", "risk_median"]
+    if "risk_percent_base" in agg_dict:
+        col_names.extend(["risk_base_mean", "risk_base_std", "risk_base_min", "risk_base_max", "risk_base_median"])
+    if "subcount_percent" in agg_dict:
+        col_names.extend(["subcount_mean", "subcount_std", "subcount_min", "subcount_max", "subcount_median"])
+    col_names.extend(["anomaly_mean", "anomaly_std", "cluster_degradation"])
+    
+    summary.columns = col_names
     
     summary = summary.reset_index()
     summary = summary.sort_values("risk_mean", ascending=False)

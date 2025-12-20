@@ -2,23 +2,113 @@
 Prepare map data for visualization.
 
 Joins risk scores with geographic information (SECCIO_CENSAL) and generates
-GeoJSON files for the frontend application.
+GeoJSON files for the frontend application using actual geometries from
+BarcelonaCiutat_SeccionsCensals.csv.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import duckdb
 import numpy as np
 import pandas as pd
+from shapely.geometry import Point, Polygon, MultiPolygon
+from shapely import wkt
 
 
 def load_risk_data(risk_csv_path: str | Path) -> pd.DataFrame:
     """Load risk scores from CSV."""
     df = pd.read_csv(risk_csv_path)
+    
+    # Ensure subcount_percent column exists (even if all zeros)
+    if "subcount_percent" not in df.columns:
+        print("  WARNING: subcount_percent column not found in CSV. Adding with default value 0.0")
+        print("  This usually means Stage 4 was run with --disable-subcounting")
+        df["subcount_percent"] = 0.0
+    
+    # Ensure risk_percent_base column exists
+    if "risk_percent_base" not in df.columns:
+        print("  WARNING: risk_percent_base column not found in CSV. Using risk_percent as fallback")
+        df["risk_percent_base"] = df.get("risk_percent", 0.0)
+    
     return df
+
+
+def load_census_sections(csv_path: str | Path) -> tuple[dict[str, Polygon | MultiPolygon], dict[str, str]]:
+    """
+    Load census sections from CSV and parse geometries.
+    
+    Returns:
+        - Dictionary mapping seccio_censal (in our format: 8019XXYYY) to Shapely Polygon or MultiPolygon objects
+        - Dictionary mapping seccio_censal to nom_barri (neighborhood name)
+    """
+    print(f"Loading census sections from {csv_path}...")
+    df = pd.read_csv(csv_path)
+    
+    geometries = {}
+    barrio_names = {}
+    
+    for _, row in df.iterrows():
+        codi_districte = str(row["codi_districte"]).zfill(2)  # Ensure 2 digits
+        codi_seccio_censal = str(row["codi_seccio_censal"]).zfill(3)  # Ensure 3 digits
+        
+        # Build our format: 8019XXYYY
+        our_format = f"8019{codi_districte}{codi_seccio_censal}"
+        
+        # Store barrio name
+        nom_barri = str(row["nom_barri"]) if pd.notna(row["nom_barri"]) else ""
+        barrio_names[our_format] = nom_barri
+        
+        # Parse the WGS84 geometry (POLYGON string)
+        geom_wgs84 = row["geometria_wgs84"]
+        if pd.notna(geom_wgs84) and geom_wgs84.strip():
+            try:
+                # Parse WKT POLYGON string to Shapely Polygon
+                polygon = wkt.loads(str(geom_wgs84))
+                geometries[our_format] = polygon
+            except Exception as e:
+                print(f"  Warning: Could not parse geometry for {our_format}: {e}")
+                continue
+    
+    print(f"  Loaded {len(geometries)} census section geometries")
+    print(f"  Loaded {len(barrio_names)} barrio name mappings")
+    return geometries, barrio_names
+
+
+def generate_random_point_in_polygon(polygon: Polygon | MultiPolygon, seed: int | None = None) -> tuple[float, float]:
+    """
+    Generate a random point inside a polygon or multipolygon using rejection sampling.
+    
+    Returns (lng, lat) coordinates.
+    """
+    if seed is not None:
+        np.random.seed(seed)
+    
+    # If MultiPolygon, use the largest polygon by area
+    if isinstance(polygon, MultiPolygon):
+        polygon = max(polygon.geoms, key=lambda p: p.area)
+    
+    # Get bounding box
+    bounds = polygon.bounds  # (minx, miny, maxx, maxy)
+    
+    max_attempts = 1000
+    for _ in range(max_attempts):
+        # Generate random point in bounding box
+        lng = np.random.uniform(bounds[0], bounds[2])
+        lat = np.random.uniform(bounds[1], bounds[3])
+        
+        point = Point(lng, lat)
+        
+        # Check if point is inside polygon
+        if polygon.contains(point):
+            return (float(lng), float(lat))
+    
+    # If we couldn't find a point after max_attempts, use centroid as fallback
+    centroid = polygon.centroid
+    return (float(centroid.x), float(centroid.y))
 
 
 def load_metadata_with_coordinates(db_path: str | Path) -> pd.DataFrame:
@@ -99,68 +189,20 @@ def load_metadata_with_coordinates(db_path: str | Path) -> pd.DataFrame:
     return df
 
 
-# Barcelona land zones - approximating the city's actual shape, excluding water
-BARCELONA_LAND_ZONES = [
-    # Central Barcelona (Eixample, Ciutat Vella)
-    {"min_lng": 2.150, "max_lng": 2.190, "min_lat": 41.375, "max_lat": 41.405, "weight": 3.0},
-    # Upper Barcelona (Gràcia, Sant Gervasi)
-    {"min_lng": 2.135, "max_lng": 2.175, "min_lat": 41.395, "max_lat": 41.420, "weight": 2.0},
-    # Eastern Barcelona (Sant Martí)
-    {"min_lng": 2.180, "max_lng": 2.220, "min_lat": 41.390, "max_lat": 41.420, "weight": 2.0},
-    # Western Barcelona (Les Corts, Sants)
-    {"min_lng": 2.110, "max_lng": 2.155, "min_lat": 41.370, "max_lat": 41.395, "weight": 2.0},
-    # Southern Barcelona (Sants-Montjuïc)
-    {"min_lng": 2.140, "max_lng": 2.180, "min_lat": 41.355, "max_lat": 41.380, "weight": 2.0},
-    # Northern Barcelona (Horta-Guinardó)
-    {"min_lng": 2.150, "max_lng": 2.190, "min_lat": 41.410, "max_lat": 41.440, "weight": 1.5},
-    # North-West (Sarrià-Sant Gervasi)
-    {"min_lng": 2.105, "max_lng": 2.145, "min_lat": 41.390, "max_lat": 41.425, "weight": 1.5},
-    # Far East (Sant Andreu, Nou Barris)
-    {"min_lng": 2.165, "max_lng": 2.200, "min_lat": 41.420, "max_lat": 41.455, "weight": 1.0},
-    # L'Hospitalet area
-    {"min_lng": 2.100, "max_lng": 2.140, "min_lat": 41.350, "max_lat": 41.375, "weight": 1.5},
-]
-
-
-def generate_random_coordinate(meter_index: int) -> tuple[float, float]:
-    """
-    Generate a nicely distributed random coordinate in Barcelona area.
-    
-    Uses weighted zones to distribute meters realistically across the city,
-    with central areas getting more meters.
-    """
-    # Use meter index as seed for consistency
-    np.random.seed((meter_index * 17 + 42) % (2**31))
-    
-    # Calculate total weight
-    total_weight = sum(zone["weight"] for zone in BARCELONA_LAND_ZONES)
-    
-    # Select zone based on weights
-    rand = np.random.random() * total_weight
-    selected_zone = None
-    cumulative = 0
-    
-    for zone in BARCELONA_LAND_ZONES:
-        cumulative += zone["weight"]
-        if rand <= cumulative:
-            selected_zone = zone
-            break
-    
-    if selected_zone is None:
-        selected_zone = BARCELONA_LAND_ZONES[0]
-    
-    # Generate coordinate within selected zone
-    lng = np.random.uniform(selected_zone["min_lng"], selected_zone["max_lng"])
-    lat = np.random.uniform(selected_zone["min_lat"], selected_zone["max_lat"])
-    
-    return (float(lng), float(lat))
 
 
 def prepare_meter_points(
     df_risk: pd.DataFrame,
     df_metadata: pd.DataFrame,
+    geometries: dict[str, Polygon | MultiPolygon],
+    barrio_names: dict[str, str],
 ) -> list[dict]:
-    """Prepare individual meter points as GeoJSON features."""
+    """
+    Prepare individual meter points as GeoJSON features.
+    
+    Only includes meters from Barcelona (seccio_censal starting with 8019).
+    Places meters randomly within their corresponding census section polygon.
+    """
     # Merge risk scores with metadata
     df_merged = df_risk.merge(
         df_metadata,
@@ -168,12 +210,30 @@ def prepare_meter_points(
         how="inner"
     )
     
-    features = []
+    # Filter to only Barcelona meters (seccio_censal starting with 8019)
+    df_merged = df_merged[df_merged["SECCIO_CENSAL"].astype(str).str.startswith("8019")].copy()
+    print(f"  Filtered to {len(df_merged)} Barcelona meters (seccio_censal starting with 8019)")
     
-    # Generate coordinates for each meter (ignore SECCIO_CENSAL for location)
+    features = []
+    meters_without_geometry = 0
+    
     for meter_index, (_, row) in enumerate(df_merged.iterrows()):
-        # Generate random coordinate in Barcelona area
-        coords = generate_random_coordinate(meter_index)
+        seccio_censal = str(row["SECCIO_CENSAL"]).strip()
+        
+        # Get geometry for this census section
+        polygon = geometries.get(seccio_censal)
+        
+        if polygon is None:
+            meters_without_geometry += 1
+            continue
+        
+        # Get barrio name
+        nom_barri = barrio_names.get(seccio_censal, "")
+        
+        # Generate random point inside polygon
+        # Use meter_id hash as seed for consistency
+        seed = hash(row["meter_id"]) % (2**31)
+        coords = generate_random_point_in_polygon(polygon, seed=seed)
         
         # Determine status based on risk
         risk = row["risk_percent"]
@@ -194,10 +254,13 @@ def prepare_meter_points(
                 "id": row["meter_id"],
                 "status": status,
                 "risk_percent": float(risk),
+                "risk_percent_base": float(row["risk_percent_base"]) if "risk_percent_base" in row and pd.notna(row["risk_percent_base"]) else None,
+                "subcount_percent": float(row["subcount_percent"]) if "subcount_percent" in row and pd.notna(row["subcount_percent"]) else (0.0 if "subcount_percent" in row else None),
                 "cluster_id": int(row["cluster_id"]),
                 "anomaly_score": float(row["anomaly_score"]),
                 "cluster_degradation": float(row["cluster_degradation"]),
                 "seccio_censal": str(row["SECCIO_CENSAL"]) if pd.notna(row["SECCIO_CENSAL"]) else None,
+                "nom_barri": nom_barri,
                 "num_mun_sgab": int(row["NUM_MUN_SGAB"]) if pd.notna(row["NUM_MUN_SGAB"]) else None,
                 "age": float(row["age"]) if pd.notna(row["age"]) else None,
                 "canya": float(row["canya"]) if pd.notna(row["canya"]) else None,
@@ -206,75 +269,92 @@ def prepare_meter_points(
         }
         features.append(feature)
     
+    if meters_without_geometry > 0:
+        print(f"  Warning: {meters_without_geometry} meters were skipped (no geometry found)")
+    
     return features
+
+
+def generate_section_color(seccio_censal: str, index: int) -> str:
+    """
+    Generate a distinct color for each section using a hash-based approach.
+    
+    Returns a hex color code.
+    """
+    # Use a color palette with many distinct colors
+    # Palette inspired by ColorBrewer qualitative palettes
+    color_palette = [
+        '#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3',
+        '#fdb462', '#b3de69', '#fccde5', '#d9d9d9', '#bc80bd',
+        '#ccebc5', '#ffed6f', '#a6cee3', '#1f78b4', '#b2df8a',
+        '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00',
+        '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#a6cee3',
+        '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c',
+        '#fdbf6f', '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99',
+        '#e6f598', '#abdda4', '#66c2a5', '#3288bd', '#5e4fa2',
+        '#fee08b', '#fdae61', '#f46d43', '#d53e4f', '#9e0142',
+        '#ffffbf', '#d0efb1', '#b3e5fc', '#81d4fa', '#4fc3f7',
+        '#29b6f6', '#03a9f4', '#0288d1', '#0277bd', '#01579b',
+        '#fff9c4', '#fce4ec', '#f8bbd0', '#f48fb1', '#f06292',
+        '#ec407a', '#e91e63', '#c2185b', '#ad1457', '#880e4f',
+    ]
+    
+    # Use hash of seccio_censal to consistently assign colors
+    hash_value = hash(seccio_censal)
+    color_index = abs(hash_value) % len(color_palette)
+    return color_palette[color_index]
 
 
 def prepare_census_sections(
     df_risk: pd.DataFrame,
     df_metadata: pd.DataFrame,
+    geometries: dict[str, Polygon | MultiPolygon],
+    barrio_names: dict[str, str],
 ) -> list[dict]:
-    """Prepare aggregated census sections as GeoJSON features."""
-    # Merge and aggregate by SECCIO_CENSAL
+    """
+    Prepare ALL census sections as GeoJSON features using actual geometries.
+    
+    Includes all sections from Barcelona (seccio_censal starting with 8019),
+    not just those with meters. Each section gets a distinct color.
+    """
+    # Create a set of sections that have meters (for statistics)
     df_merged = df_risk.merge(
         df_metadata,
         on="meter_id",
         how="inner"
     )
     
-    # Filter out null SECCIO_CENSAL
-    df_merged = df_merged[df_merged["SECCIO_CENSAL"].notna()].copy()
+    # Filter to only Barcelona (seccio_censal starting with 8019)
+    df_merged = df_merged[
+        df_merged["SECCIO_CENSAL"].notna() & 
+        df_merged["SECCIO_CENSAL"].astype(str).str.startswith("8019")
+    ].copy()
     
-    # Aggregate by census section
-    agg_data = df_merged.groupby("SECCIO_CENSAL").agg({
-        "meter_id": "count",
-        "risk_percent": ["mean", "min", "max", "std"],
-        "NUM_MUN_SGAB": "first",
-        "NUM_DTE_MUNI": "first",
-    }).reset_index()
-    
-    # Flatten column names
-    agg_data.columns = [
-        "SECCIO_CENSAL",
-        "meter_count",
-        "avg_risk",
-        "min_risk",
-        "max_risk",
-        "std_risk",
-        "num_mun_sgab",
-        "num_dte_muni",
-    ]
-    
-    features = []
-    
-    for section_index, (_, row) in enumerate(agg_data.iterrows()):
-        # Generate random coordinate for section centroid
-        center_lng, center_lat = generate_random_coordinate(section_index + 100000)  # Offset to get different coordinates
+    # Aggregate by census section for sections that have meters
+    if len(df_merged) > 0:
+        agg_data = df_merged.groupby("SECCIO_CENSAL").agg({
+            "meter_id": "count",
+            "risk_percent": ["mean", "min", "max", "std"],
+            "NUM_MUN_SGAB": "first",
+            "NUM_DTE_MUNI": "first",
+        }).reset_index()
         
-        # Create a polygon around the centroid
-        # Size based on number of meters in section (more meters = larger area)
-        base_radius = 0.003  # Base ~300m radius
-        meter_count = row["meter_count"]
-        # Scale radius based on meter count (log scale to avoid huge areas)
-        scale_factor = 1 + np.log1p(meter_count) * 0.5
-        radius_degrees = base_radius * scale_factor
-        
-        # Create a simple square approximation (Mapbox can style it as needed)
-        polygon_coords = [
-            [center_lng - radius_degrees, center_lat - radius_degrees],
-            [center_lng + radius_degrees, center_lat - radius_degrees],
-            [center_lng + radius_degrees, center_lat + radius_degrees],
-            [center_lng - radius_degrees, center_lat + radius_degrees],
-            [center_lng - radius_degrees, center_lat - radius_degrees],
+        # Flatten column names
+        agg_data.columns = [
+            "SECCIO_CENSAL",
+            "meter_count",
+            "avg_risk",
+            "min_risk",
+            "max_risk",
+            "std_risk",
+            "num_mun_sgab",
+            "num_dte_muni",
         ]
         
-        feature = {
-            "type": "Feature",
-            "geometry": {
-                "type": "Polygon",
-                "coordinates": [polygon_coords]
-            },
-            "properties": {
-                "seccio_censal": str(row["SECCIO_CENSAL"]),
+        # Create a dictionary for quick lookup of stats
+        stats_dict = {}
+        for _, row in agg_data.iterrows():
+            stats_dict[str(row["SECCIO_CENSAL"]).strip()] = {
                 "meter_count": int(row["meter_count"]),
                 "avg_risk": float(row["avg_risk"]),
                 "min_risk": float(row["min_risk"]),
@@ -283,8 +363,72 @@ def prepare_census_sections(
                 "num_mun_sgab": int(row["num_mun_sgab"]) if pd.notna(row["num_mun_sgab"]) else None,
                 "num_dte_muni": int(row["num_dte_muni"]) if pd.notna(row["num_dte_muni"]) else None,
             }
+    else:
+        stats_dict = {}
+    
+    # Generate features for ALL sections from geometries
+    features = []
+    sections_without_geometry = 0
+    
+    # Sort sections for consistent ordering
+    sorted_sections = sorted(geometries.keys())
+    
+    for index, seccio_censal in enumerate(sorted_sections):
+        polygon = geometries[seccio_censal]
+        
+        if polygon is None:
+            sections_without_geometry += 1
+            continue
+        
+        # Get barrio name
+        nom_barri = barrio_names.get(seccio_censal, "")
+        
+        # Get stats if available
+        stats = stats_dict.get(seccio_censal, {
+            "meter_count": 0,
+            "avg_risk": 0.0,
+            "min_risk": 0.0,
+            "max_risk": 0.0,
+            "std_risk": 0.0,
+            "num_mun_sgab": None,
+            "num_dte_muni": None,
+        })
+        
+        # Generate distinct color for this section
+        section_color = generate_section_color(seccio_censal, index)
+        
+        # Convert Shapely polygon/multipolygon to GeoJSON coordinates
+        if isinstance(polygon, MultiPolygon):
+            # For MultiPolygon, use the largest polygon by area
+            largest_poly = max(polygon.geoms, key=lambda p: p.area)
+            coords = [[float(x), float(y)] for x, y in largest_poly.exterior.coords]
+        else:
+            # Regular Polygon
+            coords = [[float(x), float(y)] for x, y in polygon.exterior.coords]
+        
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [coords]
+            },
+            "properties": {
+                "seccio_censal": seccio_censal,
+                "nom_barri": nom_barri,
+                "section_color": section_color,
+                "meter_count": stats["meter_count"],
+                "avg_risk": stats["avg_risk"],
+                "min_risk": stats["min_risk"],
+                "max_risk": stats["max_risk"],
+                "std_risk": stats["std_risk"],
+                "num_mun_sgab": stats["num_mun_sgab"],
+                "num_dte_muni": stats["num_dte_muni"],
+            }
         }
         features.append(feature)
+    
+    if sections_without_geometry > 0:
+        print(f"  Warning: {sections_without_geometry} sections were skipped (no geometry found)")
     
     return features
 
@@ -295,11 +439,15 @@ def main():
     data_dir = Path(__file__).parent
     db_path = data_dir / "analytics.duckdb"
     risk_csv = data_dir / "stage4_outputs" / "meter_failure_risk.csv"
+    census_sections_csv = data_dir / "data" / "BarcelonaCiutat_SeccionsCensals.csv"
     output_dir = data_dir.parent / "public" / "data"
     
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    print("Loading risk data...")
+    print("Loading census section geometries...")
+    geometries, barrio_names = load_census_sections(census_sections_csv)
+    
+    print("\nLoading risk data...")
     df_risk = load_risk_data(risk_csv)
     print(f"  Loaded {len(df_risk):,} meters with risk scores")
     
@@ -308,11 +456,11 @@ def main():
     print(f"  Loaded {len(df_metadata):,} meters with metadata")
     
     print("\nPreparing meter points...")
-    meter_features = prepare_meter_points(df_risk, df_metadata)
+    meter_features = prepare_meter_points(df_risk, df_metadata, geometries, barrio_names)
     print(f"  Generated {len(meter_features):,} meter point features")
     
     print("\nPreparing census sections...")
-    section_features = prepare_census_sections(df_risk, df_metadata)
+    section_features = prepare_census_sections(df_risk, df_metadata, geometries, barrio_names)
     print(f"  Generated {len(section_features):,} census section features")
     
     # Create GeoJSON FeatureCollections

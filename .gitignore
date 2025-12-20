@@ -40,3 +40,5 @@ data/models/*.joblib
 data/models/*.pkl
 data/models/*.h5
 data/models/*.pt
+
+data/data/*.parquet

@@ -229,9 +229,10 @@ def compute_risk_scores(
         - cluster_id
         - anomaly_score
         - cluster_degradation
-        - subcount_score
-        - risk_percent_base
-        - risk_percent (final combined probability, 0–100)
+        - risk_percent_base: Base risk score from anomaly + degradation (0-100)
+        - subcount_score: Raw subcounting score (0-1)
+        - subcount_percent: Subcounting probability in percentage (0-100)
+        - risk_percent: Final combined risk probability (0-100)
     """
     # Load data
     print("Loading data...")
@@ -324,6 +325,9 @@ def compute_risk_scores(
         # Fill missing scores with 0 (no subcounting evidence)
         df_results["subcount_score"] = df_results["subcount_score"].fillna(0.0)
         
+        # Convert subcount_score to percentage for display (0-100)
+        df_results["subcount_percent"] = 100.0 * df_results["subcount_score"]
+        
         # Combine base probability with subcounting probability
         p_cluster = df_results["risk_percent_base"].values / 100.0
         p_sub = np.clip(subcount_gamma * df_results["subcount_score"].values, 0.0, 1.0)
@@ -336,6 +340,7 @@ def compute_risk_scores(
     else:
         # No subcounting: keep base risk as final risk
         df_results["subcount_score"] = 0.0
+        df_results["subcount_percent"] = 0.0
         df_results["risk_percent"] = df_results["risk_percent_base"]
     
     # Sort by final risk (highest first)

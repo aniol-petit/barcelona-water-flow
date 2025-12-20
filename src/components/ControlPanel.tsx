@@ -22,7 +22,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             className="h-12 px-6 bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary text-primary-foreground shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:scale-105 transition-all duration-300 rounded-xl font-semibold"
           >
             <Lightbulb className="w-4 h-4 mr-2" />
-            Insights
+            Informació
           </Button>
           
           <div className="h-8 w-px bg-border/50" />
@@ -35,7 +35,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             className="h-12 px-5 border-2 border-primary/30 hover:border-primary/50 hover:bg-primary/5 text-primary hover:text-primary-glow hover:scale-105 transition-all duration-300 rounded-xl font-semibold"
           >
             <BarChart3 className="w-4 h-4 mr-2" />
-            Dashboard
+            Tauler
           </Button>
         </div>
       </div>

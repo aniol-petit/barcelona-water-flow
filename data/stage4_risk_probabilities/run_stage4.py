@@ -190,9 +190,19 @@ def main():
     )
     
     print(f"\n✓ Risk scores computed for {len(df_results):,} meters")
-    print(f"  Risk range: {df_results['risk_percent'].min():.2f}% - {df_results['risk_percent'].max():.2f}%")
-    print(f"  Mean risk: {df_results['risk_percent'].mean():.2f}%")
-    print(f"  Median risk: {df_results['risk_percent'].median():.2f}%")
+    print(f"\n  Base Risk (anomaly + degradation):")
+    print(f"    Range: {df_results['risk_percent_base'].min():.2f}% - {df_results['risk_percent_base'].max():.2f}%")
+    print(f"    Mean: {df_results['risk_percent_base'].mean():.2f}%")
+    print(f"    Median: {df_results['risk_percent_base'].median():.2f}%")
+    if "subcount_percent" in df_results.columns:
+        print(f"\n  Subcounting Probability:")
+        print(f"    Range: {df_results['subcount_percent'].min():.2f}% - {df_results['subcount_percent'].max():.2f}%")
+        print(f"    Mean: {df_results['subcount_percent'].mean():.2f}%")
+        print(f"    Median: {df_results['subcount_percent'].median():.2f}%")
+    print(f"\n  Final Combined Risk:")
+    print(f"    Range: {df_results['risk_percent'].min():.2f}% - {df_results['risk_percent'].max():.2f}%")
+    print(f"    Mean: {df_results['risk_percent'].mean():.2f}%")
+    print(f"    Median: {df_results['risk_percent'].median():.2f}%")
     
     # Generate summary statistics
     print("\nGenerating summary statistics...")
@@ -235,7 +245,11 @@ def main():
     print("\n" + "=" * 80)
     print("TOP 20 HIGHEST-RISK METERS")
     print("=" * 80)
-    top_20 = df_results.head(20)[["meter_id", "cluster_id", "risk_percent", "anomaly_score", "cluster_degradation"]]
+    display_cols = ["meter_id", "cluster_id", "risk_percent_base", "subcount_percent", "risk_percent"]
+    # Only show subcount_percent if subcounting was enabled
+    if "subcount_percent" not in df_results.columns:
+        display_cols = [c for c in display_cols if c != "subcount_percent"]
+    top_20 = df_results.head(20)[display_cols]
     print(top_20.to_string(index=False))
     
     print("\n" + "=" * 80)

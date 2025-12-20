@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, MapPin, Droplets, AlertTriangle, CheckCircle2, Clock, Gauge, Search } from 'lucide-react';
+import { X, MapPin, Droplets, AlertTriangle, CheckCircle2, Clock, Gauge, Search, TrendingUp } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
@@ -10,7 +10,9 @@ interface WaterMeter {
   id: string;
   coordinates: [number, number];
   status: 'normal' | 'warning' | 'alert';
-  risk_percent: number;
+  risk_percent: number; // Final combined risk (0-100)
+  risk_percent_base?: number; // Base risk from anomaly + degradation (0-100)
+  subcount_percent?: number; // Subcounting probability (0-100)
   cluster_id?: number;
   seccio_censal?: string;
   age?: number;
@@ -62,6 +64,7 @@ const generateMockMeterData = (meter: WaterMeter): WaterMeter => {
 export const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, meters }) => {
   const [selectedTab, setSelectedTab] = useState('normal');
   const [searchQuery, setSearchQuery] = useState('');
+  const [displayLimit, setDisplayLimit] = useState(70);
 
   if (!isOpen) return null;
 
@@ -69,7 +72,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, meters })
   const metersWithData = (meters && meters.length > 0) ? meters.map(meter => {
     const meterWithName = {
       ...meter,
-      name: meter.name || `Meter ${meter.id}`
+      name: meter.name || `Comptador ${meter.id}`
     };
     return generateMockMeterData(meterWithName);
   }) : [];
@@ -87,9 +90,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, meters })
   };
 
   // Filter meters by status first, then by search query
-  const normalMeters = filterMeters(metersWithData.filter(m => m.status === 'normal'));
-  const warningMeters = filterMeters(metersWithData.filter(m => m.status === 'warning'));
-  const alertMeters = filterMeters(metersWithData.filter(m => m.status === 'alert'));
+  const normalMetersAll = filterMeters(metersWithData.filter(m => m.status === 'normal'));
+  const warningMetersAll = filterMeters(metersWithData.filter(m => m.status === 'warning'));
+  const alertMetersAll = filterMeters(metersWithData.filter(m => m.status === 'alert'));
+  
+  // Apply pagination - show only first N meters per tab
+  const normalMeters = normalMetersAll.slice(0, displayLimit);
+  const warningMeters = warningMetersAll.slice(0, displayLimit);
+  const alertMeters = alertMetersAll.slice(0, displayLimit);
+  
+  // Check if there are more meters to load
+  // If total > displayLimit, there are more to show
+  const hasMoreNormal = normalMetersAll.length > displayLimit;
+  const hasMoreWarning = warningMetersAll.length > displayLimit;
+  const hasMoreAlert = alertMetersAll.length > displayLimit;
+  
+  // Handle load more
+  const handleLoadMore = () => {
+    setDisplayLimit(prev => prev + 70);
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -105,9 +124,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, meters })
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'alert':
-        return <Badge variant="destructive">Alert</Badge>;
+        return <Badge variant="destructive">Alerta</Badge>;
       case 'warning':
-        return <Badge variant="secondary" className="bg-accent text-accent-foreground">Warning</Badge>;
+        return <Badge variant="secondary" className="bg-accent text-accent-foreground">Avis</Badge>;
       default:
         return <Badge variant="default">Normal</Badge>;
     }
@@ -130,32 +149,66 @@ export const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, meters })
           <span className="truncate">{meter.location}</span>
         </div>
         
-        <div className="grid grid-cols-2 gap-3 text-xs">
-          <div className="flex items-center gap-1">
-            <Droplets className="w-3 h-3 text-primary" />
-            <span className="text-muted-foreground">Last Month:</span>
-            <span className="font-medium">
-              {meter.last_month_consumption ? Math.round(meter.last_month_consumption).toLocaleString() : 'N/A'} L
-            </span>
+        <div className="space-y-2">
+          {/* Risk Scores Section */}
+          <div className="bg-muted/30 rounded-lg p-2 space-y-1.5 border border-border/50">
+            <div className="text-xs font-semibold text-muted-foreground mb-1.5">Puntuacions de Risc</div>
+            <div className="grid grid-cols-1 gap-1.5 text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <Gauge className="w-3 h-3 text-primary" />
+                  <span className="text-muted-foreground">Risc Base:</span>
+                </div>
+                <span className="font-medium text-foreground">
+                  {Math.round(meter.risk_percent_base ?? meter.risk_percent ?? meter.predictedFailureRisk ?? 0)}%
+                </span>
+              </div>
+              {meter.subcount_percent !== undefined && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <TrendingUp className="w-3 h-3 text-accent" />
+                    <span className="text-muted-foreground">Subcomptatge:</span>
+                  </div>
+                  <span className="font-medium text-foreground">
+                    {Math.round(meter.subcount_percent)}%
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                <div className="flex items-center gap-1">
+                  <Gauge className="w-3 h-3 text-destructive" />
+                  <span className="text-muted-foreground font-semibold">Risc Final:</span>
+                </div>
+                <span className="font-bold text-foreground">
+                  {Math.round(meter.risk_percent || meter.predictedFailureRisk || 0)}%
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            <Gauge className="w-3 h-3 text-accent" />
-            <span className="text-muted-foreground">Risk:</span>
-            <span className="font-medium">{Math.round(meter.risk_percent || meter.predictedFailureRisk || 0)}%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Clock className="w-3 h-3 text-muted-foreground" />
-            <span className="text-muted-foreground">Age:</span>
-            <span className="font-medium">
-              {meter.age ? meter.age.toFixed(1) : 'N/A'} yrs
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Droplets className="w-3 h-3 text-muted-foreground" />
-            <span className="text-muted-foreground">Canya:</span>
-            <span className="font-medium">
-              {meter.canya ? Math.round(meter.canya).toLocaleString() : 'N/A'}
-            </span>
+          
+          {/* Other Metrics */}
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="flex items-center gap-1">
+              <Droplets className="w-3 h-3 text-primary" />
+              <span className="text-muted-foreground">Darrer Mes:</span>
+              <span className="font-medium">
+                {meter.last_month_consumption ? Math.round(meter.last_month_consumption).toLocaleString() : 'N/A'} L
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Clock className="w-3 h-3 text-muted-foreground" />
+              <span className="text-muted-foreground">Edat:</span>
+              <span className="font-medium">
+                {meter.age ? meter.age.toFixed(1) : 'N/A'} anys
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Droplets className="w-3 h-3 text-muted-foreground" />
+              <span className="text-muted-foreground">Canya:</span>
+              <span className="font-medium">
+                {meter.canya ? Math.round(meter.canya).toLocaleString() : 'N/A'}
+              </span>
+            </div>
           </div>
         </div>
       </CardContent>
@@ -176,10 +229,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, meters })
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-3xl font-bold tracking-tight">
-                <span className="text-gradient-primary">Water Meter</span> Dashboard
+                <span className="text-gradient-primary">Comptadors</span>
               </h2>
               <p className="text-sm text-muted-foreground mt-1.5 font-medium">
-                Monitor all water meters across Barcelona
+                Monitorització de tots els comptadors d'aigua a Barcelona
               </p>
             </div>
             <Button
@@ -197,7 +250,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, meters })
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
               type="text"
-              placeholder="Search by meter name, location, or ID..."
+              placeholder="Cerca per nom, localització, ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 pr-4 py-2 w-full max-w-md"
@@ -215,62 +268,92 @@ export const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, meters })
           </div>
         </div>
         
-        <div className="p-6 h-[calc(100vh-8rem)] overflow-y-auto">
+        <div className="p-6 pb-20 h-[calc(100vh-8rem)] overflow-y-auto">
           <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3 mb-6">
               <TabsTrigger value="normal" className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4" />
-                Normal ({normalMeters.length})
+                Normal ({normalMetersAll.length})
               </TabsTrigger>
               <TabsTrigger value="warning" className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4" />
-                Warning ({warningMeters.length})
+                Avis ({warningMetersAll.length})
               </TabsTrigger>
               <TabsTrigger value="alert" className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4" />
-                Alert ({alertMeters.length})
+                Alerta ({alertMetersAll.length})
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="normal" className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {normalMeters.map((meter) => (
-                  <MeterCard key={meter.id} meter={meter} />
-                ))}
-              </div>
-              {normalMeters.length === 0 && (
+              {normalMeters.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <CheckCircle2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>{searchQuery ? 'No normal meters found matching your search' : 'No normal meters to display'}</p>
+                  <p>{searchQuery ? 'No s\'han trobat comptadors normals que coincideixin amb la cerca' : 'No hi ha comptadors normals per mostrar'}</p>
                 </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {normalMeters.map((meter) => (
+                      <MeterCard key={meter.id} meter={meter} />
+                    ))}
+                  </div>
+                  {hasMoreNormal ? (
+                    <div className="w-full flex justify-center py-4">
+                      <Button onClick={handleLoadMore} variant="outline" size="lg" className="px-8">
+                        Carregar Més ({normalMetersAll.length - normalMeters.length} restants)
+                      </Button>
+                    </div>
+                  ) : null}
+                </>
               )}
             </TabsContent>
 
             <TabsContent value="warning" className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {warningMeters.map((meter) => (
-                  <MeterCard key={meter.id} meter={meter} />
-                ))}
-              </div>
-              {warningMeters.length === 0 && (
+              {warningMeters.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <AlertTriangle className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>{searchQuery ? 'No warning meters found matching your search' : 'No warning meters to display'}</p>
+                  <p>{searchQuery ? 'No s\'han trobat comptadors amb avis que coincideixin amb la cerca' : 'No hi ha comptadors amb avis per mostrar'}</p>
                 </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {warningMeters.map((meter) => (
+                      <MeterCard key={meter.id} meter={meter} />
+                    ))}
+                  </div>
+                  {hasMoreWarning ? (
+                    <div className="w-full flex justify-center py-4">
+                      <Button onClick={handleLoadMore} variant="outline" size="lg" className="px-8">
+                        Carregar Més ({warningMetersAll.length - warningMeters.length} restants)
+                      </Button>
+                    </div>
+                  ) : null}
+                </>
               )}
             </TabsContent>
 
             <TabsContent value="alert" className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {alertMeters.map((meter) => (
-                  <MeterCard key={meter.id} meter={meter} />
-                ))}
-              </div>
-              {alertMeters.length === 0 && (
+              {alertMeters.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <AlertTriangle className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>{searchQuery ? 'No alert meters found matching your search' : 'No alert meters to display'}</p>
+                  <p>{searchQuery ? 'No s\'han trobat comptadors amb alerta que coincideixin amb la cerca' : 'No hi ha comptadors amb alerta per mostrar'}</p>
                 </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {alertMeters.map((meter) => (
+                      <MeterCard key={meter.id} meter={meter} />
+                    ))}
+                  </div>
+                  {hasMoreAlert ? (
+                    <div className="w-full flex justify-center py-4">
+                      <Button onClick={handleLoadMore} variant="outline" size="lg" className="px-8">
+                        Carregar Més ({alertMetersAll.length - alertMeters.length} restants)
+                      </Button>
+                    </div>
+                  ) : null}
+                </>
               )}
             </TabsContent>
           </Tabs>
