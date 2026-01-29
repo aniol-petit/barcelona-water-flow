@@ -1,350 +1,457 @@
-# Predictive Water Intelligence - FlowGuard. 1st Prize Winner (6k€)
+# FlowGuard - Predictive Water Intelligence System
 
+**🏆 1st Prize Winner Aigües de Barcelona Data Challenge - 6,000€ Award**
 
-Sistema de manteniment predictiu per detectar possibles comportaments de subcomptatge en comptadors d'aigua intel·ligents a Barcelona. Aquest projecte implementa un pipeline d'aprenentatge no supervisat multi-etapa que identifica comptadors d'alt risc que requereixen inspecció o manteniment.
-
-## 🎯 Visió General del Projecte
-
-Aquesta aplicació ajuda Aigües de Barcelona a monitoritzar i mantenir la seva infraestructura de comptadors d'aigua mitjançant:
-
-- **Identificació de comptadors anòmals**: Detecció de comptadors que mostren patrons de consum inusuals
-- **Puntuació de risc**: Assignació d'una probabilitat de fallada (0-100%) a cada comptador
-- **Visualització interactiva**: Interfície basada en mapa per explorar l'estat de salut dels comptadors
-- **Insights accionables**: Generació de informes detallats sobre els 20 comptadors amb major risc
+A predictive maintenance system for detecting potential undercounting behaviors in smart water meters across Barcelona. This project implements a multi-stage unsupervised learning pipeline that identifies high-risk meters requiring inspection or maintenance.
 
 ---
 
-# 📋 Guia Completa d'Execució del Projecte
+## 📋 Table of Contents
 
-Aquesta guia explica pas a pas com executar tot el codi del projecte des de zero.
+- [Overview](#overview)
+- [Features](#features)
+- [Technologies](#technologies)
+- [Project Structure](#project-structure)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Methodology](#methodology)
+- [Results](#results)
 
-## Pas 1: Preparació del Dataset
+---
 
-### 1.1. Col·locar el Dataset Original
+## 🎯 Overview
 
-Col·loca el fitxer del dataset original a la carpeta `data/data/` amb un d'aquests noms:
-- `Dades_Comptadors_anonymized_v2.csv` (format CSV)
-- `Dades_Comptadors_anonymized_v2.parquet` (format Parquet - **recomanat**)
+FlowGuard is an intelligent water meter monitoring system developed for Aigües de Barcelona. The system leverages advanced machine learning techniques to:
 
-**Estructura esperada del dataset:**
+- **Identify anomalous meters**: Detect water meters showing unusual consumption patterns
+- **Risk scoring**: Assign a failure probability (0-100%) to each meter
+- **Interactive visualization**: Map-based interface to explore meter health status
+- **Actionable insights**: Generate detailed reports on the top 20 highest-risk meters
 
-El dataset ha de contenir les següents columnes:
-- `POLIZA_SUMINISTRO`: Identificador únic del comptador
-- `FECHA`: Data del registre (format YYYY-MM-DD)
-- `CONSUMO_REAL`: Consum real d'aigua (litres/dia)
-- `SECCIO_CENSAL`: Codi de secció censal
-- `US_AIGUA_GEST`: Tipus d'ús ('D'=domèstic, 'C'=comercial, 'I'=industrial, 'A'=altres)
-- `NUM_MUN_SGAB`: Codi de municipi
-- `NUM_DTE_MUNI`: Codi de districte
-- `NUM_COMPLET`: Identificador complet del comptador
-- `DATA_INST_COMP`: Data d'instal·lació del comptador
-- `MARCA_COMP`: Marca del comptador
-- `CODI_MODEL`: Codi del model
-- `DIAM_COMP`: Diàmetre del comptador (mm)
+The solution combines unsupervised learning, deep learning (autoencoders), and clustering techniques to create a comprehensive risk assessment framework for water infrastructure management.
 
-### 1.2. Convertir CSV a Parquet (si cal)
+---
 
-Si tens el dataset en format CSV, converteix-lo a Parquet per millor rendiment:
+## Features
 
-```python
-import pandas as pd
-from pathlib import Path
+- **Multi-stage ML Pipeline**: 
+  - Physical feature extraction and clustering
+  - Autoencoder-based latent representation learning
+  - Behavioral clustering analysis
+  - Risk probability calculation
 
-# Llegeix el CSV
-csv_path = Path("data/data/Dades_Comptadors_anonymized_v2.csv")
-df = pd.read_csv(csv_path)
+- **Interactive Web Dashboard**:
+  - Real-time map visualization of meter locations
+  - Color-coded risk indicators (Normal, Warning, Alert)
+  - Census section aggregation views
+  - Detailed meter information on click
+  - Top 20 high-risk meters insights panel
 
-# Guarda com a Parquet
-parquet_path = Path("data/data/Dades_Comptadors_anonymized_v2.parquet")
-df.to_parquet(parquet_path, index=False, engine='pyarrow')
+- **Comprehensive Risk Assessment**:
+  - Anomaly detection within clusters
+  - Degradation modeling (age + pipe characteristics)
+  - Subcounting probability calculation
+  - Combined risk scoring
 
-print(f"✓ Dataset convertit a: {parquet_path}")
+---
+
+## Technologies
+
+### Backend / Data Processing
+- **Python 3.x**
+- **PyTorch** - Deep learning framework for autoencoder
+- **scikit-learn** - Clustering algorithms (KMeans, DBSCAN)
+- **DuckDB** - Analytical database for efficient data processing
+- **pandas, numpy** - Data manipulation
+- **scipy** - Statistical analysis
+
+### Frontend
+- **React** - Web application framework
+- **TypeScript** - Type-safe development
+- **Mapbox GL JS** - Interactive map visualization
+- **GeoJSON** - Geographic data format
+
+### Data Storage
+- **Parquet** - Columnar data format for efficient storage
+- **DuckDB** - In-memory analytical database
+
+---
+
+## 📁 Project Structure
+
+```
+barcelona-water-flow/
+├── data/
+│   ├── data/                          # Raw dataset location
+│   │   └── Dades_Comptadors_anonymized_v2.parquet
+│   ├── stage1_kmeans/                 # Physical features & KMeans clustering
+│   ├── stage2_autoencoder/            # Autoencoder training
+│   ├── stage3_clustering/             # Latent space clustering
+│   ├── stage4_risk_probabilities/     # Risk calculation
+│   ├── stage1_outputs/                # Stage 1 outputs
+│   ├── stage2_outputs/                # Stage 2 outputs
+│   ├── stage3_outputs/                # Stage 3 outputs
+│   ├── stage4_outputs/                # Stage 4 outputs
+│   ├── models/                        # Trained models
+│   ├── analytics.duckdb               # DuckDB database
+│   ├── create_database.py             # Database initialization
+│   ├── prepare_map_data.py            # GeoJSON generation
+│   └── requirements.txt               # Python dependencies
+├── public/
+│   └── data/                          # GeoJSON files for frontend
+│       ├── water_meters.geojson
+│       ├── census_sections.geojson
+│       └── risk_summary.json
+└── src/                               # Frontend React application
 ```
 
 ---
 
-## Pas 2: Instal·lació de Dependències
+## Installation
 
-### 2.1. Dependències Python
+### Prerequisites
+
+- Python 3.8+
+- Node.js 14+
+- npm or yarn
+
+### Step 1: Clone the Repository
+
+```bash
+git clone <repository-url>
+cd barcelona-water-flow
+```
+
+### Step 2: Install Python Dependencies
 
 ```bash
 cd data
 pip install -r requirements.txt
 ```
 
-Això instal·larà:
+This installs:
 - pandas, numpy, scipy
 - scikit-learn
 - torch (PyTorch)
 - duckdb
 - matplotlib, seaborn
-- pyarrow (per llegir/escrivir Parquet)
-- joblib (per guardar models)
-- shapely (per dades geogràfiques)
+- pyarrow
+- joblib
+- shapely
 
-### 2.2. Dependències del Frontend
+### Step 3: Install Frontend Dependencies
 
 ```bash
-# Des de l'arrel del projecte
+# From project root
 npm install
 ```
 
----
+### Step 4: Prepare Dataset
 
-## Pas 3: Creació de la Base de Dades DuckDB
+Place your dataset file in `data/data/` with one of these names:
+- `Dades_Comptadors_anonymized_v2.csv` (CSV format)
+- `Dades_Comptadors_anonymized_v2.parquet` (Parquet format - **recommended**)
 
-Abans d'executar les etapes, cal crear la base de dades DuckDB que utilitzaran les etapes:
+**Expected dataset structure:**
+
+The dataset should contain the following columns:
+- `POLIZA_SUMINISTRO`: Unique meter identifier
+- `FECHA`: Record date (YYYY-MM-DD format)
+- `CONSUMO_REAL`: Real water consumption (liters/day)
+- `SECCIO_CENSAL`: Census section code
+- `US_AIGUA_GEST`: Usage type ('D'=domestic, 'C'=commercial, 'I'=industrial, 'A'=other)
+- `NUM_MUN_SGAB`: Municipality code
+- `NUM_DTE_MUNI`: District code
+- `NUM_COMPLET`: Complete meter identifier
+- `DATA_INST_COMP`: Meter installation date
+- `MARCA_COMP`: Meter brand
+- `CODI_MODEL`: Model code
+- `DIAM_COMP`: Meter diameter (mm)
+
+**Convert CSV to Parquet (if needed):**
+
+```python
+import pandas as pd
+from pathlib import Path
+
+# Read CSV
+csv_path = Path("data/data/Dades_Comptadors_anonymized_v2.csv")
+df = pd.read_csv(csv_path)
+
+# Save as Parquet
+parquet_path = Path("data/data/Dades_Comptadors_anonymized_v2.parquet")
+df.to_parquet(parquet_path, index=False, engine='pyarrow')
+
+print(f"✓ Dataset converted to: {parquet_path}")
+```
+
+### Step 5: Create DuckDB Database
 
 ```bash
 cd data
 python create_database.py
 ```
 
-Aquest script:
-- Llegeix el fitxer Parquet de `data/data/Dades_Comptadors_anonymized_v2.parquet`
-- Crea la base de dades `analytics.duckdb` amb dues vistes:
-  - `counter_metadata`: Metadades dels comptadors (característiques físiques)
-  - `consumption_data`: Dades de consum diari
+This script:
+- Reads the Parquet file from `data/data/Dades_Comptadors_anonymized_v2.parquet`
+- Creates the `analytics.duckdb` database with two views:
+  - `counter_metadata`: Meter metadata (physical characteristics)
+  - `consumption_data`: Daily consumption data
 
-**Sortida esperada:**
+**Expected output:**
 ```
 Creating database with views...
 Views created:
-  - counter_metadata: [número] rows
-  - consumption_data: [número] rows
+  - counter_metadata: [number] rows
+  - consumption_data: [number] rows
 [OK] Database created: data/analytics.duckdb
 ```
 
 ---
 
-## Pas 4: Execució de les Etapes del Pipeline
+## Usage
 
-Executa les etapes en ordre seqüencial. Cada etapa genera sortides que són entrada per l'etapa següent.
+### Running the Complete Pipeline
 
-### Etapa 0: Anàlisi Exploratòria (Opcional)
+Execute the stages in sequential order. Each stage generates outputs that serve as input for the next stage.
+
+#### Stage 0: Exploratory Data Analysis (Optional)
 
 ```bash
 cd data
-# Obre el notebook Jupyter
 jupyter notebook eda_full_dataset.ipynb
 ```
 
-Aquest notebook analitza la qualitat i distribució de les dades abans de la modelització.
+This notebook analyzes data quality and distribution before modeling.
 
-### Etapa I: Característiques Físiques i KMeans
+#### Stage I: Physical Features & KMeans Clustering
 
 ```bash
 cd data
 python -m stage1_kmeans.run_stage1
 ```
 
-**Què fa:**
-- Extreu característiques físiques (edat, diàmetre, canya, marca/model)
-- Normalitza les característiques
-- Troba el k òptim mitjançant silueta (prova k de 2 a 20)
-- Aplica KMeans per generar pseudo-etiquetes de cluster
+**What it does:**
+- Extracts physical features (age, diameter, pipe, brand/model)
+- Normalizes features
+- Finds optimal k using silhouette score (tests k from 2 to 20)
+- Applies KMeans to generate pseudo-labels
 
-**Sortides:**
+**Outputs:**
 - `stage1_outputs/stage1_physical_features_with_clusters.csv`
-- Model KMeans guardat (si s'ha configurat)
+- KMeans model (if configured)
 
-**Temps estimat:** 2-5 minuts
+**Estimated time:** 2-5 minutes
 
-### Etapa II: Entrenament de l'Autoencoder
+#### Stage II: Autoencoder Training
 
 ```bash
 cd data
 python -m stage2_autoencoder.run_stage2
 ```
 
-**Què fa:**
-- Construeix vectors d'entrada amb 48 valors de consum mensual + característiques físiques + etiqueta de cluster
-- Entrena un autoencoder per aprendre representacions latents
-- Extreu els vectors latents Z per a tots els comptadors
+**What it does:**
+- Builds input vectors with 48 monthly consumption values + physical features + cluster label
+- Trains an autoencoder to learn latent representations
+- Extracts latent vectors Z for all meters
 
-**Sortides:**
-- `stage2_outputs/latent_representations.csv` (matriu [num_comptadors × dimensió_latent])
-- `models/stage2_autoencoder.pth` (model entrenat)
+**Outputs:**
+- `stage2_outputs/latent_representations.csv` (matrix [num_meters × latent_dimension])
+- `models/stage2_autoencoder.pth` (trained model)
 
-**Temps estimat:** 10-30 minuts (depèn de la GPU)
+**Estimated time:** 10-30 minutes (depends on GPU availability)
 
-### Etapa III: Clustering de l'Espai Latent
+#### Stage III: Latent Space Clustering
 
 ```bash
 cd data
 python -m stage3_clustering.run_stage3
 ```
 
-**Què fa:**
-- Aplica KMeans (o DBSCAN) sobre els vectors latents de l'Etapa II
-- Genera clusters de perfils comportamentals
-- Realitza anàlisi estadística per identificar clusters de risc
+**What it does:**
+- Applies KMeans (or DBSCAN) on latent vectors from Stage II
+- Generates behavioral profile clusters
+- Performs statistical analysis to identify risk clusters
 
-**Sortides:**
+**Outputs:**
 - `stage3_outputs/cluster_labels.csv`
-- `stage3_outputs/cluster_analysis_*.csv` (anàlisis per edat, canya, diàmetre, marca/model)
-- `stage3_outputs/cluster_analysis_subcounting_risk.csv` (clusters ordenats per risc)
-- `stage3_outputs/visualizations/*.png` (gràfics d'anàlisi)
-- `models/stage3_kmeans_clustering.joblib` (model de clustering)
+- `stage3_outputs/cluster_analysis_*.csv` (analysis by age, pipe, diameter, brand/model)
+- `stage3_outputs/cluster_analysis_subcounting_risk.csv` (clusters ordered by risk)
+- `stage3_outputs/visualizations/*.png` (analysis charts)
+- `models/stage3_kmeans_clustering.joblib` (clustering model)
 
-**Temps estimat:** 3-8 minuts
+**Estimated time:** 3-8 minutes
 
-### Etapa IV: Càlcul de Probabilitats de Risc
+#### Stage IV: Risk Probability Calculation
 
 ```bash
 cd data
 python -m stage4_risk_probabilities.run_stage4
 ```
 
-**Què fa:**
-- Calcula la puntuació d'anomalia intra-cluster (distància al centroide)
-- Calcula la degradació a nivell de cluster (edat + canya)
-- Combina aquests components per obtenir el risc base
-- Calcula la probabilitat de subcomptatge a partir de les sèries temporals
-- Combina risc base i subcomptatge per obtenir el risc final
+**What it does:**
+- Calculates intra-cluster anomaly score (distance to centroid)
+- Calculates cluster-level degradation (age + pipe)
+- Combines these components to get base risk
+- Calculates subcounting probability from time series
+- Combines base risk and subcounting for final risk score
 
-**Sortides:**
-- `stage4_outputs/meter_failure_risk.csv` (risc per a cada comptador)
-- `stage4_outputs/risk_summary_by_cluster.csv` (estadístiques per cluster)
-- `stage4_outputs/visualizations/*.png` (distribucions de risc)
+**Outputs:**
+- `stage4_outputs/meter_failure_risk.csv` (risk for each meter)
+- `stage4_outputs/risk_summary_by_cluster.csv` (statistics per cluster)
+- `stage4_outputs/visualizations/*.png` (risk distributions)
 
-**Temps estimat:** 5-15 minuts
+**Estimated time:** 5-15 minutes
 
-**Paràmetres opcionals:**
+**Optional parameters:**
 ```bash
 python -m stage4_risk_probabilities.run_stage4 \
-    --w1 0.5 \              # Pes per puntuació d'anomalia
-    --w2 0.5 \              # Pes per degradació de cluster
-    --alpha 0.6 \           # Pes per edat en degradació
-    --beta 0.4 \            # Pes per canya en degradació
-    --subcount-gamma 0.8 \  # Pes màxim per subcomptatge
-    --disable-subcounting   # Desactivar càlcul de subcomptatge
+    --w1 0.5 \              # Weight for anomaly score
+    --w2 0.5 \              # Weight for cluster degradation
+    --alpha 0.6 \           # Weight for age in degradation
+    --beta 0.4 \            # Weight for pipe in degradation
+    --subcount-gamma 0.8 \  # Maximum weight for subcounting
+    --disable-subcounting   # Disable subcounting calculation
 ```
 
-### Pas 5: Preparació de Dades per al Mapa
+#### Step 5: Prepare Map Data
 
 ```bash
 cd data
 python prepare_map_data.py
 ```
 
-**Què fa:**
-- Llegeix els resultats de l'Etapa IV (`stage4_outputs/meter_failure_risk.csv`)
-- Fusiona amb metadades geogràfiques de la base de dades
-- Genera fitxers GeoJSON per al frontend:
-  - `public/data/water_meters.geojson` (punts dels comptadors amb risc)
-  - `public/data/census_sections.geojson` (seccions censals agregades)
-  - `public/data/risk_summary.json` (resum estadístic)
+**What it does:**
+- Reads Stage IV results (`stage4_outputs/meter_failure_risk.csv`)
+- Merges with geographic metadata from database
+- Generates GeoJSON files for frontend:
+  - `public/data/water_meters.geojson` (meter points with risk)
+  - `public/data/census_sections.geojson` (aggregated census sections)
+  - `public/data/risk_summary.json` (statistical summary)
 
-**Sortida esperada:**
+**Expected output:**
 ```
 Loading risk data...
-  Loaded [número] meters with risk scores
+  Loaded [number] meters with risk scores
 Loading metadata...
-  Loaded [número] meters with metadata
+  Loaded [number] meters with metadata
 Preparing meter points...
-  Generated [número] meter point features
+  Generated [number] meter point features
 Preparing census sections...
-  Generated [número] census section features
+  Generated [number] census section features
 Saving GeoJSON files...
   ✓ public/data/water_meters.geojson
   ✓ public/data/census_sections.geojson
   ✓ public/data/risk_summary.json
 ```
 
-**Temps estimat:** 1-3 minuts
+**Estimated time:** 1-3 minutes
 
----
+#### Step 6: Run Web Application
 
-## Pas 6: Execució de l'Aplicació Web
+**Configure Mapbox (if needed):**
 
-### 6.1. Configurar Mapbox (si cal)
+The application uses Mapbox GL JS. If you don't have a Mapbox token configured, you'll need to add it to environment variables or modify the `WaterMeterMap.tsx` component code.
 
-L'aplicació utilitza Mapbox GL JS. Si no tens un token de Mapbox configurat, hauràs d'afegir-lo a les variables d'entorn o modificar el codi del component `WaterMeterMap.tsx`.
-
-### 6.2. Iniciar el Servidor de Desenvolupament
+**Start Development Server:**
 
 ```bash
-# Des de l'arrel del projecte
+# From project root
 npm run dev
 ```
 
-L'aplicació estarà disponible a `http://localhost:8080` (o el port que mostri el terminal).
+The application will be available at `http://localhost:8080` (or the port shown in the terminal).
 
-### 6.3. Funcionalitats de l'Aplicació
+**Application Features:**
 
-- **Mapa interactiu**: Visualitza tots els comptadors amb codi de colors segons el risc
-- **Filtres**: Normal (<50%), Warning (50-80%), Alert (≥80%)
-- **Vista de seccions censals**: Visualització agregada per àrees geogràfiques
-- **Dashboard**: Taula amb tots els comptadors, ordenats per risc
-- **Panell d'insights**: Detalls dels 20 comptadors amb major risc
-- **Popups al mapa**: Clic sobre un comptador per veure detalls (risc final, subcomptatge, cluster, etc.)
+- **Interactive map**: Visualize all meters with color-coded risk levels
+- **Filters**: Normal (<50%), Warning (50-80%), Alert (≥80%)
+- **Census section view**: Aggregated visualization by geographic areas
+- **Dashboard**: Table with all meters, sorted by risk
+- **Insights panel**: Details of the top 20 highest-risk meters
+- **Map popups**: Click on a meter to see details (final risk, subcounting, cluster, etc.)
 
----
-
-## Resum de l'Ordre d'Execució
+### Quick Start Summary
 
 ```bash
-# 1. Preparació
+# 1. Preparation
 cd data
-# Col·loca el dataset a data/data/Dades_Comptadors_anonymized_v2.parquet
-# (o converteix CSV a Parquet)
+# Place dataset at data/data/Dades_Comptadors_anonymized_v2.parquet
+# (or convert CSV to Parquet)
 
-# 2. Instal·lació
+# 2. Installation
 pip install -r requirements.txt
 cd ..
 npm install
 
-# 3. Creació de base de dades
+# 3. Create database
 cd data
 python create_database.py
 
-# 4. Pipeline ML (en ordre)
+# 4. ML Pipeline (in order)
 python -m stage1_kmeans.run_stage1
 python -m stage2_autoencoder.run_stage2
 python -m stage3_clustering.run_stage3
 python -m stage4_risk_probabilities.run_stage4
 
-# 5. Preparació de dades per al mapa
+# 5. Prepare map data
 python prepare_map_data.py
 
-# 6. Executar aplicació web
+# 6. Run web application
 cd ..
 npm run dev
 ```
 
 ---
 
-## Solució de Problemes
+## Methodology
 
-### Error: "DuckDB database not found"
-- Assegura't d'haver executat `python create_database.py` abans de les etapes.
+### Multi-Stage Unsupervised Learning Pipeline
 
-### Error: "Parquet file not found"
-- Verifica que el fitxer estigui a `data/data/Dades_Comptadors_anonymized_v2.parquet`
-- Si tens CSV, converteix-lo a Parquet abans.
+1. **Physical Feature Extraction & Clustering (Stage I)**
+   - Extract meter characteristics (age, diameter, pipe type, brand/model)
+   - Normalize features and apply KMeans clustering
+   - Generate initial meter groupings based on physical attributes
 
-### Error: "Module not found"
-- Assegura't d'haver instal·lat les dependències: `pip install -r requirements.txt`
-- Executa les etapes des de la carpeta `data/`.
+2. **Latent Representation Learning (Stage II)**
+   - Construct feature vectors combining:
+     - 48 monthly consumption values
+     - Physical features
+     - Cluster labels from Stage I
+   - Train autoencoder to learn compressed representations
+   - Extract latent vectors capturing behavioral patterns
 
-### Error: "CUDA out of memory" (PyTorch)
-- L'autoencoder s'entrena per defecte a CPU. Si tens GPU i vols utilitzar-la, modifica `run_stage2.py` per especificar el device.
+3. **Behavioral Clustering (Stage III)**
+   - Apply clustering on latent space representations
+   - Identify behavioral profiles and consumption patterns
+   - Statistical analysis to determine risk clusters
 
-### Els resultats no apareixen al mapa
-- Assegura't d'haver executat `prepare_map_data.py` després de l'Etapa IV
-- Verifica que els fitxers GeoJSON estiguin a `public/data/`
-- Refresca el navegador després de regenerar els fitxers
+4. **Risk Assessment (Stage IV)**
+   - **Anomaly Score**: Distance to cluster centroid
+   - **Degradation Score**: Age and pipe characteristics
+   - **Subcounting Probability**: Time series analysis
+   - **Final Risk**: Weighted combination of all factors
+
+### Risk Scoring Formula
+
+The final risk score combines:
+- **Base Risk** = w₁ × Anomaly Score + w₂ × Degradation Score
+- **Final Risk** = Base Risk + γ × Subcounting Probability
+
+Where:
+- w₁, w₂: Weights for anomaly and degradation (default: 0.5 each)
+- α, β: Weights for age and pipe in degradation (default: 0.6, 0.4)
+- γ: Maximum weight for subcounting (default: 0.8)
 
 ---
 
-## Estructura de Sortides Esperada
+## Results
 
-Després d'executar tot el pipeline, hauràs de tenir:
+After executing the complete pipeline, you'll have:
 
 ```
 data/
-├── analytics.duckdb                    # Base de dades creada
+├── analytics.duckdb                    # Created database
 ├── stage1_outputs/
 │   └── stage1_physical_features_with_clusters.csv
 ├── stage2_outputs/
@@ -367,7 +474,5 @@ public/data/
 └── risk_summary.json
 ```
 
-Amb aquesta estructura, l'aplicació web podrà carregar i visualitzar tots els resultats.
-
----
+With this structure, the web application can load and visualize all results.
 
