@@ -9,6 +9,7 @@ A predictive maintenance system for detecting potential undercounting behaviors 
 ## 📋 Table of Contents
 
 - [Overview](#overview)
+- [Demo](#-demo)
 - [Features](#features)
 - [Technologies](#technologies)
 - [Project Structure](#project-structure)
@@ -29,6 +30,20 @@ FlowGuard is an intelligent water meter monitoring system developed for Aigües 
 - **Actionable insights**: Generate detailed reports on the top 20 highest-risk meters
 
 The solution combines unsupervised learning, deep learning (autoencoders), and clustering techniques to create a comprehensive risk assessment framework for water infrastructure management.
+
+---
+
+## 🎥 Demo
+
+Watch the application in action:
+
+<div align="center">
+
+### 🎬 [▶️ Watch Demo Video](./demo.mp4)
+
+**Click the link above to view the full demonstration**
+
+</div>
 
 ---
 
