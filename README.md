@@ -1,4 +1,5 @@
-# Predictive Water Intelligence - Barcelona Water Flow
+# Predictive Water Intelligence - FlowGuard. 1st Prize Winner (6k€)
+
 
 Sistema de manteniment predictiu per detectar possibles comportaments de subcomptatge en comptadors d'aigua intel·ligents a Barcelona. Aquest projecte implementa un pipeline d'aprenentatge no supervisat multi-etapa que identifica comptadors d'alt risc que requereixen inspecció o manteniment.
 
